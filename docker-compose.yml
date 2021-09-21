@@ -1,0 +1,64 @@
+version: "3.9"
+
+services:
+  postgis:
+    build:
+      context: ./
+      dockerfile: ./Dockerfiles/Dockerfile_postgis
+    image: geocoder_postgis_img
+    container_name: geocoder_postgis_cont
+    restart: always
+    ports:
+      - "5432:5432"
+    secrets:
+      - postgresql_user
+      - postgresql_password
+      - postgresql_db
+    environment:
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgresql_password
+      POSTGRES_USER_FILE: /run/secrets/postgresql_user
+      POSTGRES_DB_FILE: /run/secrets/postgresql_db
+    volumes:
+      - "public_geocoder:/var/lib/postgresql/data"
+
+  pgadmin4:
+    build: 
+      context: ./
+      dockerfile: ./Dockerfiles/Dockerfile_pgadmin4
+    image: geocoder_pgadmin4_img
+    container_name: geocoder_pgadmin4_cont
+    restart: always
+    depends_on:
+      - postgis
+    environment:
+      PGADMIN_DEFAULT_EMAIL_FILE: /run/secrets/pgadmin_email
+      PGADMIN_DEFAULT_PASSWORD_FILE: /run/secrets/pgadmin_password
+    ports:
+      - "5433:80"
+    secrets:
+      - pgadmin_email
+      - pgadmin_password
+    volumes:
+      - public_geocoder_admin:/var/lib/pgadmin
+
+  # superset:
+  #   image: apache/superset:pr-15413
+  #   restart: always
+  #   depends_on:
+  #     - postgres
+
+volumes:
+  public_geocoder:
+  public_geocoder_admin:
+
+secrets:
+  postgresql_user:
+    file: ./secrets/postgresql_user.txt
+  postgresql_password:
+    file: ./secrets/postgresql_password.txt
+  postgresql_db:
+    file: ./secrets/postgresql_db.txt
+  pgadmin_email:
+    file: ./secrets/pgadmin_email.txt
+  pgadmin_password:
+    file: ./secrets/pgadmin_password.txt

@@ -1,0 +1,10 @@
+FROM dpage/pgadmin4:5.7
+COPY ./entrypoints/entrypoint_pgadmin4.sh entrypoint_pgadmin4.sh
+
+USER root
+RUN apk add bash
+RUN ["chmod", "+x", "entrypoint_pgadmin4.sh"]
+USER pgadmin
+
+ENTRYPOINT ["./entrypoint_pgadmin4.sh"]
+CMD ["default"]
