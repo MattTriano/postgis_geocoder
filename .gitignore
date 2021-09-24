@@ -1,0 +1,9 @@
+/secrets
+.ipynb_checkpoints
+__pycache__
+
+*.egg-info
+
+credentials.yml
+
+notebooks/
