@@ -3,8 +3,10 @@ COPY ./init_files/initdb-postgis.sh /docker-entrypoint-initdb.d/10_postgis.sh
 
 # Configure utils
 RUN apt-get update \
-    && apt-get install -y wget
+    && apt-get install -y wget unzip postgis
 
 # Make data dir
 RUN mkdir -p /gisdata \
-    && chmod 777 -R /gisdata
+	&& mkdir -p /gisdata/temp \
+    && chmod 777 -R /gisdata \
+    && chmod 777 -R /gisdata/temp
