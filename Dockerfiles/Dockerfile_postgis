@@ -1,5 +1,4 @@
 FROM postgis/postgis:13-3.1
-COPY ./init_files/initdb-postgis.sh /docker-entrypoint-initdb.d/10_postgis.sh
 
 # Configure utils
 RUN apt-get update \
@@ -10,3 +9,6 @@ RUN mkdir -p /gisdata \
 	&& mkdir -p /gisdata/temp \
     && chmod 777 -R /gisdata \
     && chmod 777 -R /gisdata/temp
+
+COPY ./init_files/initdb-postgis.sh /docker-entrypoint-initdb.d/10_postgis.sh
+COPY ./init_files/load_data.sh /docker-entrypoint-initdb.d/11_load_data.sh
