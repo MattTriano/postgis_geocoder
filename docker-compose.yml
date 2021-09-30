@@ -19,6 +19,7 @@ services:
       POSTGRES_USER_FILE: /run/secrets/postgresql_user
       POSTGRES_DB_FILE: /run/secrets/postgresql_db
       GEOCODER_STATES: ${GEOCODER_STATES}
+      GEOCODER_YEAR: ${GEOCODER_YEAR}
     volumes:
       - "public_geocoder:/var/lib/postgresql/data"
 
