@@ -2,6 +2,7 @@ import os
 from typing import Dict, List, Union
 import yaml
 
+import pandas as pd
 import psycopg2 as pg
 from sqlalchemy import create_engine, event
 from sqlalchemy.engine.url import URL
@@ -87,3 +88,34 @@ def get_standardized_address_df(
     )
     cur.close()
     return result_df
+
+
+def geocode_addr(
+    conn: pg.extensions.connection,
+    addr_to_geocode: str,
+    top_n: Union[int, None] = None,
+) -> pd.DataFrame:
+    if top_n is None:
+        top_n_label = f""
+    else:
+        top_n_label = f", {top_n}"
+
+    query = f"""
+    SELECT
+        g.rating As r, 
+        ST_Y(g.geomout)::numeric(10,5) As lat,
+        ST_X(g.geomout)::numeric(10,5) As lon,
+        pprint_addy(addy) As paddress
+    FROM geocode(
+        '{addr_to_geocode}'{top_n_label}
+    ) As g;
+    """
+
+    cur = conn.cursor()
+    cur.execute(query)
+    results = cur.fetchall()
+    geocode_results_df = pd.DataFrame(
+        results, columns=[el[0] for el in cur.description]
+    )
+    cur.close()
+    return geocode_results_df
