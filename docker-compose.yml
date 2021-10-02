@@ -7,6 +7,7 @@ services:
       dockerfile: ./Dockerfiles/Dockerfile_postgis
     image: geocoder_postgis_img
     container_name: geocoder_postgis_cont
+    shm_size: 4gb 
     restart: always
     ports:
       - "5432:5432"
