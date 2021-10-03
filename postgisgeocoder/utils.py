@@ -7,7 +7,6 @@ import psycopg2 as pg
 from sqlalchemy import create_engine, event
 from sqlalchemy.engine.url import URL
 from sqlalchemy.engine.base import Engine
-from sqlalchemy.sql.schema import Table
 
 
 def get_db_connection_from_credential_file(
@@ -111,7 +110,7 @@ def geocode_addr(
         g.rating AS rating,
         ST_Y(g.geomout)::numeric(10,6) AS latitude,
         ST_X(g.geomout)::numeric(10,6) AS longitude,
-        pprint_addy(addy) AS paddress,
+        pprint_addy(addy) AS geocoded_address,
         (addy).address AS street_num,
         (addy).predirabbrev AS street_dir,
         (addy).streetname AS street_name,
@@ -124,4 +123,5 @@ def geocode_addr(
     ) As g;
     """
     geocode_results_df = execute_result_returning_query(query, conn)
+    geocode_results_df["raw_address"] = addr_to_geocode
     return geocode_results_df
