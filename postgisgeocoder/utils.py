@@ -115,10 +115,17 @@ def geocode_addr(
 
     query = f"""
     SELECT
-        g.rating As r, 
-        ST_Y(g.geomout)::numeric(10,5) As lat,
-        ST_X(g.geomout)::numeric(10,5) As lon,
-        pprint_addy(addy) As paddress
+        g.rating AS rating,
+        ST_Y(g.geomout)::numeric(10,6) AS latitude,
+        ST_X(g.geomout)::numeric(10,6) AS longitude,
+        pprint_addy(addy) AS paddress,
+        (addy).address AS street_num,
+        (addy).predirabbrev AS street_dir,
+        (addy).streetname AS street_name,
+        (addy).streettypeabbrev AS street_type,
+        (addy).location AS city,
+        (addy).stateabbrev AS st,
+        (addy).zip AS zip
     FROM geocode(
         '{addr_to_geocode}'{top_n_label}
     ) As g;
