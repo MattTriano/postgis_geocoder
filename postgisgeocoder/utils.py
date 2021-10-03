@@ -63,10 +63,22 @@ def format_addresses_for_standardization(
     return addrs_formatted_for_standardization
 
 
+def execute_result_returning_query(
+    query: str, conn: pg.extensions.connection
+) -> pd.DataFrame:
+    cur = conn.cursor()
+    cur.execute(query)
+    results = cur.fetchall()
+    results_df = pd.DataFrame(
+        results, columns=[el[0] for el in cur.description]
+    )
+    cur.close()
+    return results_df
+
+
 def get_standardized_address_df(
     conn: pg.extensions.connection, formatted_addrs: str
 ) -> pd.DataFrame:
-    cur = conn.cursor()
     query = f"""
     WITH A(a) AS (
         VALUES 
@@ -80,26 +92,7 @@ def get_standardized_address_df(
         ) As s FROM A
     ) AS X;
     """
-
-    cur.execute(query)
-    results = cur.fetchall()
-    result_df = pd.DataFrame(
-        results, columns=[el[0] for el in cur.description]
-    )
-    cur.close()
-    return result_df
-
-
-def execute_result_returning_query(
-    query: str, conn: pg.extensions.connection
-) -> pd.DataFrame:
-    cur = conn.cursor()
-    cur.execute(query)
-    results = cur.fetchall()
-    results_df = pd.DataFrame(
-        results, columns=[el[0] for el in cur.description]
-    )
-    cur.close()
+    results_df = execute_result_returning_query(query, conn)
     return results_df
 
 
