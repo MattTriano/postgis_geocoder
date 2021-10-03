@@ -90,6 +90,19 @@ def get_standardized_address_df(
     return result_df
 
 
+def execute_result_returning_query(
+    query: str, conn: pg.extensions.connection
+) -> pd.DataFrame:
+    cur = conn.cursor()
+    cur.execute(query)
+    results = cur.fetchall()
+    results_df = pd.DataFrame(
+        results, columns=[el[0] for el in cur.description]
+    )
+    cur.close()
+    return results_df
+
+
 def geocode_addr(
     conn: pg.extensions.connection,
     addr_to_geocode: str,
@@ -110,12 +123,5 @@ def geocode_addr(
         '{addr_to_geocode}'{top_n_label}
     ) As g;
     """
-
-    cur = conn.cursor()
-    cur.execute(query)
-    results = cur.fetchall()
-    geocode_results_df = pd.DataFrame(
-        results, columns=[el[0] for el in cur.description]
-    )
-    cur.close()
+    geocode_results_df = execute_result_returning_query(query, conn)
     return geocode_results_df
