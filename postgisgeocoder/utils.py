@@ -143,3 +143,32 @@ def geocode_addr(
     geocode_results_df = execute_result_returning_query(query, conn)
     geocode_results_df["raw_address"] = addr_to_geocode
     return geocode_results_df
+
+
+def geocode_list_of_addresses(
+    conn: pg.extensions.connection,
+    addrs_to_geocode: List[str],
+    top_n: Union[int, None] = None,
+    restrict_geom_query: Union[str, None] = None,
+    print_every_n: int = 50,
+) -> pd.DataFrame:
+    num_addrs_left = len(addrs_to_geocode)
+    print(f"Total number of addresses to geocode: {num_addrs_left}.")
+    full_geocoded_results = []
+    for addr_to_geocode in addrs_to_geocode:
+        geocode_results_df = geocode_addr(
+            conn=conn,
+            addr_to_geocode=addr_to_geocode,
+            top_n=top_n,
+            restrict_geom_query=restrict_geom_query,
+        )
+        geocode_results_df["addr_similarity_ratio"] = geocode_results_df[
+            "geocoded_address"
+        ].apply(lambda x: similar(addr_to_geocode, x.upper()))
+        num_addrs_left = num_addrs_left - 1
+        full_geocoded_results.append(geocode_results_df)
+        if num_addrs_left % print_every_n == 0:
+            print(f"Number of addresses to geocode left: {num_addrs_left}.")
+    full_geocoded_results_df = pd.concat(full_geocoded_results)
+    full_geocoded_results_df = full_geocoded_results_df.reset_index(drop=True)
+    return full_geocoded_results_df
