@@ -95,6 +95,19 @@ def get_standardized_address_df(
     return results_df
 
 
+def func_timer(func):
+    @functools.wraps(func)
+    def wrapper_func_timer(*args, **kwargs):
+        start_time = time.perf_counter()
+        func_product = func(*args, **kwargs)
+        end_time = time.perf_counter()
+        run_time = end_time - start_time
+        print(f"Execution time: {run_time:0.4f} seconds")
+        return func_product
+
+    return wrapper_func_timer
+
+
 def geocode_addr(
     conn: pg.extensions.connection,
     addr_to_geocode: str,
