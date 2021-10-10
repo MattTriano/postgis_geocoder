@@ -112,11 +112,16 @@ def geocode_addr(
     conn: pg.extensions.connection,
     addr_to_geocode: str,
     top_n: Union[int, None] = None,
+    restrict_geom_query: Union[str, None] = None,
 ) -> pd.DataFrame:
     if top_n is None:
-        top_n_label = f""
+        top_n = ""
     else:
-        top_n_label = f", {top_n}"
+        top_n = f", max_results := {top_n}"
+    if restrict_geom_query is None:
+        restrict_geom_query = ""
+    else:
+        restrict_geom_query = f", restrict_geom := ({restrict_geom_query})"
 
     query = f"""
     SELECT
@@ -132,7 +137,7 @@ def geocode_addr(
         (addy).stateabbrev AS st,
         (addy).zip AS zip
     FROM geocode(
-        '{addr_to_geocode}'{top_n_label}
+        '{addr_to_geocode}'{top_n}{restrict_geom_query}
     ) As g;
     """
     geocode_results_df = execute_result_returning_query(query, conn)
