@@ -1,4 +1,4 @@
-FROM dpage/pgadmin4:5.7
+FROM dpage/pgadmin4:6.3
 COPY ./entrypoints/entrypoint_pgadmin4.sh entrypoint_pgadmin4.sh
 
 USER root

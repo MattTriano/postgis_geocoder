@@ -1,8 +1,8 @@
-FROM postgis/postgis:13-3.1
+FROM postgis/postgis:13-3.2
 
 # Configure utils
 RUN apt-get update \
-    && apt-get install -y wget unzip postgis \
+    && apt-get install -y wget unzip apt-utils postgis \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
