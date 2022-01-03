@@ -10,7 +10,7 @@ services:
     shm_size: 4gb 
     restart: always
     ports:
-      - "5432:5432"
+      - "4326:5432"
     secrets:
       - postgresql_user
       - postgresql_password
@@ -37,7 +37,7 @@ services:
       PGADMIN_DEFAULT_EMAIL_FILE: /run/secrets/pgadmin_email
       PGADMIN_DEFAULT_PASSWORD_FILE: /run/secrets/pgadmin_password
     ports:
-      - "5433:80"
+      - "4327:80"
     secrets:
       - pgadmin_email
       - pgadmin_password
