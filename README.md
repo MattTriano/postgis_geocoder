@@ -4,30 +4,74 @@ This project is mainly intended to be a turnkey geocoding service for addresses 
 
 At present, it's configured to create a PostgreSQL database, load some extensions ()
 
-# Starting up the system
+# Setting up the system
 
-After cloning and `cd`ing into this repo, make and `cd` into the `secrets` directory if it doesn't exist
-`.../postgis_geocoder$ mkdir secrets && cd secrets`
+1. Clone this repo and navigate into its top-level directory (`/postgis_geocoder`)
 
-Then create the secret-holding files required by the `docker-compose.yml` file via
-```bash
-touch pgadmin_email.txt pgadmin_password.txt postgresql_db.txt \
- postgresql_password.txt postgresql_user.txt
-```
-Did the database name (in `postgresql_db`) need to be secret? Probably not, but I was learning about docker secrets when I implemented that and I like a bit of security by obscurity.
+2. Set up secrets (eg passwords, usernames, and db_name) for your system
+    1. create blank files in the correct location via
 
-Now that you've created those empty files, put only the string described by the filename in each file (eg if you want your postgres admin username to be "matt", put exactly 4 characters (specifically m, a, t, and t; but without the spaces, commas, and "and") in postgres_user.txt).
+       ```bash
+       user@host:~/.../postgis_geocoder$ mkdir secrets && \
+       cd secrets && \
+       touch postgresql_password.txt \
+       postgresql_user.txt \
+       postgresql_db.txt \
+       pgadmin_password.txt \
+       pgadmin_email.txt && \
+       cd ..
+       ```
 
-With your secrets set, `cd` back to the project root dir (via `cd ..`). 
+    2. Open the file `.../postgis_geocoder/secrets/postgresql_password.txt` in a text editor, type in the string you want to use as the password for the postgres/postGIS database, save, and exit. Make sure there aren't any leading or trailing spaces (unless you want your password to have leading or trailing spaces).
+    3. Open the file `.../postgis_geocoder/secrets/postgresql_user.txt` and type in the string you want to use as the username for the postgres/postGIS database.
+    4. 5. 6. Repeat for the remaining 3 files.
 
-If you want the TIGER Geocoder to load geometries for all states from 2020, leave the default `.env` alone, but if you only want to load a handful of states or you want geometries from another year, edit the `.env` file. For example, if you only wanted to load midwestern states, reduce the listed state abbreviations (central midwestern sample shown below).
+3. Indicate the version (ie year) and set of US States/territories geometries you want to load into the database in the `.../postgis_geocoder/.env` file
 
-```bash
-GEOCODER_STATES=IA,IL,IN,MI,WI
-GEOCODER_YEAR=2020
-```
+    If you want the TIGER Geocoder to load geometries for all states from 2020, leave the default `.env` alone, but if you only want to load a handful of states or you want geometries from another year, edit the `.env` file. For example, if you only wanted to load midwestern states, reduce the listed state abbreviations (central midwestern sample shown below).
 
-With your secrets and states set, you can build the geocoder image via `$ docker-compose build`, then you can start up the containers via `$ docker-compose up` (you may want to add `-d` at the end to detach the server and keep your terminal, but I kind of like seeing the output and when I want more, I tack on `--verbose` to see even more detail).
+    ```bash
+    GEOCODER_STATES=IA,IL,IN,MI,WI
+    GEOCODER_YEAR=2020
+    ```
+
+4. Recommended step: Turn on a VPN and set a specific server location
+
+Loading a full set of data can take over an hour, and if there's a network hiccup, it can short-circuit the rest of the loading of data. Additionally, as the full set of data is 10s of GB, the US Census site appears to have a limit on how frequently an IP address can download each file.
+
+5. Attempt initialization
+    5.1. Build the services used in the postgis_geocoder application
+
+    ```bash
+    user@host:~/.../postgis_geocoder$ docker-compose build
+    ```
+
+    5.2. Load TIGER data into the database
+    This step will likely take hours (depending on the number of states indicated in your `.env` file)
+
+    ```bash
+    user@host:~/.../postgis_geocoder$ docker-compose --verbose up 2>&1 | tee compose_up_logs_02.txt
+    ```
+
+    5.3. When the console output stabilizes, check the logs to see if all data was loaded. Specifically, look for things like
+
+        ```bash
+        geocoder_postgis_cont | FINISHED --2022-03-27 19:45:15--
+        geocoder_postgis_cont | Total wall clock time: 19s
+        geocoder_postgis_cont | Downloaded: 1 files, 6.5M in 4.6s (1.41 MB/s)
+        geocoder_postgis_cont | https://www2.census.gov/geo/tiger/TIGER2020/EDGES/tl_2020_16085_edges.zip:
+        geocoder_postgis_cont | 2022-03-27 19:46:15 ERROR 500: Internal Server Error.
+        ```
+
+    near the bottom of the file. An error message is an obvious sign of an issue, and from the name of the last requested file (`tl_2020_16085_edges.zip`), we can see how much data was loaded. The process will load all of a state's feature-groups (eg [block, tract, county, edge, etc](https://www2.census.gov/geo/pdfs/maps-data/data/tiger/tgrshp2020/TGRSHP2020_TechDoc.pdf)) before iterating to the next state, and the state is indicated by the 2 digits after the `tl_YYYY_` characters. In this attempt, the run made it through much of state `16`, which, per this [reference](https://www2.census.gov/geo/docs/reference/state.txt), is Idaho.
+
+    5.4 If the run failed, clear the volume via the below command, connect your VPN to a different server, and go back to step 5.1.
+    NOTE: I need to find a better way to do this; ideally one that allows for resuming initialization where it failed rather than simply clearing the data volume and trying again until a run successfully completes without issue, but that's not yet implemented. In any case, it's a very good idea to capture logs during the initialization to help debug in the (likely) case that something causes the initial data load to short circuit.
+    
+        ```bash
+        user@host:~/.../postgis_geocoder$ docker-compose down -v
+        ```
+
 
 ## ToDo:
 Actually do some geocoding, then document it.
