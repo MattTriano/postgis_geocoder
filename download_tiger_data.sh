@@ -129,10 +129,6 @@ do
     fi
 done
 
-# for i in "${download_urls[@]}"; do
-#   echo $i
-# done
-
 for i in "${no_reject_urls[@]}"; do
   echo $i \
         | perl -nle 'print if m{(?=\"tl)(.*?)(?<=>)}g' \
@@ -140,23 +136,29 @@ for i in "${no_reject_urls[@]}"; do
         | sed -e 's/[\">]//g'
 done
 
-download_file () {
+download_files_from_url_file () {
     local file_path=$1
-    # printf "printing $(file_path)"
-    # echo $file_path
     readarray -t file_urls < $1
-
-#     # file_urls=()
-#     # while IFS= read -r line; do
-#     #     file_urls+=("$line")
-#     # done < $file_path
-#     echo "Starting to print file urls"
-    # echo ${file_urls}
-    for i in "${file_urls[@]}"; do
-        echo $i
+    local downloaded_files=()
+    for file_url in "${file_urls[@]}"; do
+        OUTPUT_FILE="${GISDATA}/${file_url}"
+        if [ -f "$OUTPUT_FILE" ]; then
+            echo "$OUTPUT_FILE already pulled"
+            downloaded_files+=($file_url)
+        else
+            # echo "downloading $file_url to location $OUTPUT_FILE"
+            OUTPUT_DIR=$(dirname $OUTPUT_FILE)
+            # echo $OUTPUT_DIR
+            mkdir -p ${OUTPUT_DIR}
+            wget -O $OUTPUT_FILE $file_url --mirror
+        fi
+        # echo $file_url
     done
+    echo "Difference in fils_urls and previously downloaded_files"
+    undownloaded_files=(`echo ${file_urls[@]} ${downloaded_files[@]} | tr ' ' '\n' | sort | uniq -u`)
+    echo $undownloaded_files
 }
 
 echo "${URLDIR}"
 echo "${URLDIR}AL_featnames_urls.txt"
-download_file ${URLDIR}AL_featnames_urls.txt
+download_files_from_url_file ${URLDIR}AL_featnames_urls.txt
