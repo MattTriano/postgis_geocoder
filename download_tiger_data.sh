@@ -129,12 +129,38 @@ do
     fi
 done
 
-for i in "${no_reject_urls[@]}"; do
-  echo $i \
-        | perl -nle 'print if m{(?=\"tl)(.*?)(?<=>)}g' \
-        | perl -nle 'print m{(?=\"tl)(.*?)(?<=>)}g' \
-        | sed -e 's/[\">]//g'
-done
+# for i in "${no_reject_urls[@]}"; do
+#   echo $i \
+#         | perl -nle 'print if m{(?=\"tl)(.*?)(?<=>)}g' \
+#         | perl -nle 'print m{(?=\"tl)(.*?)(?<=>)}g' \
+#         | sed -e 's/[\">]//g'
+# done
+
+download_national_and_statewide_files() {
+    local downloaded_files=()
+    for download_url in "${download_urls[@]}"
+    do
+        OUTPUT_FILE="${GISDATA}/${download_url}"
+        # echo $OUTPUT_FILE
+        # echo $download_url
+        if [ -f "$OUTPUT_FILE" ]; then
+            # echo "$OUTPUT_FILE already pulled"
+            downloaded_files+=($download_url)
+        else
+            # echo "downloading $file_url to location $OUTPUT_FILE"
+            OUTPUT_DIR=$(dirname $OUTPUT_FILE)
+            # echo $OUTPUT_DIR
+            mkdir -p ${OUTPUT_DIR}
+            wget -O $OUTPUT_FILE $download_url --mirror --reject=html
+        fi
+    done
+    echo "Difference in download_urls and previously downloaded_files"
+    undownloaded_files=(`echo ${download_urls[@]} ${downloaded_files[@]} | tr ' ' '\n' | sort | uniq -u`)
+    echo $undownloaded_files
+}
+
+download_national_and_statewide_files
+
 
 download_files_from_url_file () {
     local file_path=$1
@@ -143,7 +169,7 @@ download_files_from_url_file () {
     for file_url in "${file_urls[@]}"; do
         OUTPUT_FILE="${GISDATA}/${file_url}"
         if [ -f "$OUTPUT_FILE" ]; then
-            echo "$OUTPUT_FILE already pulled"
+            # echo "$OUTPUT_FILE already pulled"
             downloaded_files+=($file_url)
         else
             # echo "downloading $file_url to location $OUTPUT_FILE"
@@ -154,11 +180,34 @@ download_files_from_url_file () {
         fi
         # echo $file_url
     done
-    echo "Difference in fils_urls and previously downloaded_files"
+    echo "Difference in file_urls and previously downloaded_files"
     undownloaded_files=(`echo ${file_urls[@]} ${downloaded_files[@]} | tr ' ' '\n' | sort | uniq -u`)
     echo $undownloaded_files
 }
 
-echo "${URLDIR}"
-echo "${URLDIR}AL_featnames_urls.txt"
-download_files_from_url_file ${URLDIR}AL_featnames_urls.txt
+create_array_of_url_files() {
+    local -n url_file_paths=$1
+    for url_file_path in "$URLDIR"/*
+    do
+        echo "$url_file_path"
+        url_file_paths+=($url_file_path)
+    done
+}
+
+use_array_of_url_files() {
+    local file_paths
+    create_array_of_url_files file_paths
+    # echo "predeclare"
+    # declare -p file_paths
+    # echo "postdeclare"
+    for file_path in "${file_paths[@]}"
+    do
+        echo $file_path
+        download_files_from_url_file ${file_path}
+    done
+}
+
+
+
+
+# use_array_of_url_files
