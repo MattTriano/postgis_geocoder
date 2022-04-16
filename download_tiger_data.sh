@@ -74,25 +74,64 @@ do
 
         no_reject_urls+=($BASEURL/FACES $FIPS)
 
-        files=($(get_fips_files $BASEURL/FACES $FIPS))
-        for i in "${files[@]}"
-        do
-            echo "$BASEURL/FACES/$i" >> "${URLDIR}/${ABBR}_faces_urls.txt"
-            no_reject_urls+=($BASEURL/FACES/$i)
-            echo $BASEURL/FACES/$i
-        done
+        URL_FILE="${URLDIR}/${ABBR}_faces_urls.txt"
+        if [ -f "$URL_FILE" ]; then
+            echo "$URL_FILE already pulled"
+        else
+            files=($(get_fips_files $BASEURL/FACES $FIPS))
+            for i in "${files[@]}"
+            do
+                echo "$BASEURL/FACES/$i" >> "$URL_FILE"
+                no_reject_urls+=($BASEURL/FACES/$i)
+                echo $BASEURL/FACES/$i
+            done
+        fi
 
-        # files=($(get_fips_files $BASEURL/FEATNAMES $FIPS))
-        # for i in "${files[@]}"
-        # do
-        #     no_reject_urls+=($BASEURL/FEATNAMES/$i)
-        # done
+        URL_FILE="${URLDIR}/${ABBR}_featnames_urls.txt"
+        if [ -f "$URL_FILE" ]; then
+            echo "$URL_FILE already pulled"
+        else
+            files=($(get_fips_files $BASEURL/FEATNAMES $FIPS))
+            for i in "${files[@]}"
+            do
+                echo "$BASEURL/FEATNAMES/$i" >> "$URL_FILE"
+                no_reject_urls+=($BASEURL/FEATNAMES/$i)
+                echo $BASEURL/FEATNAMES/$i
+            done
+        fi
+
+        URL_FILE="${URLDIR}/${ABBR}_edges_urls.txt"
+        if [ -f "$URL_FILE" ]; then
+            echo "$URL_FILE already pulled"
+        else
+            files=($(get_fips_files $BASEURL/EDGES $FIPS))
+            for i in "${files[@]}"
+            do
+                echo "$BASEURL/EDGES/$i" >> "$URL_FILE"
+                no_reject_urls+=($BASEURL/EDGES/$i)
+                echo $BASEURL/EDGES/$i
+            done
+        fi
+
+        URL_FILE="${URLDIR}/${ABBR}_addr_urls.txt"
+        if [ -f "$URL_FILE" ]; then
+            echo "$URL_FILE already pulled"
+        else
+            files=($(get_fips_files $BASEURL/ADDR $FIPS))
+            for i in "${files[@]}"
+            do
+                echo "$BASEURL/ADDR/$i" >> "$URL_FILE"
+                no_reject_urls+=($BASEURL/ADDR/$i)
+                echo $BASEURL/ADDR/$i
+            done
+        fi
+
     fi
 done
 
-for i in "${download_urls[@]}"; do
-  echo $i
-done
+# for i in "${download_urls[@]}"; do
+#   echo $i
+# done
 
 for i in "${no_reject_urls[@]}"; do
   echo $i \
@@ -101,6 +140,23 @@ for i in "${no_reject_urls[@]}"; do
         | sed -e 's/[\">]//g'
 done
 
-for i in "${no_reject_urls[@]}"; do
-  echo $i
-done
+download_file () {
+    local file_path=$1
+    # printf "printing $(file_path)"
+    # echo $file_path
+    readarray -t file_urls < $1
+
+#     # file_urls=()
+#     # while IFS= read -r line; do
+#     #     file_urls+=("$line")
+#     # done < $file_path
+#     echo "Starting to print file urls"
+    # echo ${file_urls}
+    for i in "${file_urls[@]}"; do
+        echo $i
+    done
+}
+
+echo "${URLDIR}"
+echo "${URLDIR}AL_featnames_urls.txt"
+download_file ${URLDIR}AL_featnames_urls.txt
