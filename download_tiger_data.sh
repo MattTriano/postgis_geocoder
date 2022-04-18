@@ -63,6 +63,21 @@ get_fips_files () {
   echo "${matched[*]}"
 }
 
+format_tabblock_variables() {
+  tabblock_dir="TABBLOCK"
+  tabblock_file_label="tabblock10"
+  tabblock_geoid_colname="geoid10"
+  if [[ "${YEAR}" -ge 2011 && "${YEAR}" -lt 2014 ]]; then
+    tabblock_file_label="tabblock"
+    tabblock_geoid_colname="geoid"
+  elif [[ "${YEAR}" -ge 2020 ]]; then
+    tabblock_dir="TABBLOCK20"
+    tabblock_file_label="tabblock20"
+    tabblock_geoid_colname="geoid20"
+  fi
+}
+
+format_tabblock_variables
 download_urls+=("${BASEURL}/STATE/tl_${YEAR}_us_state.zip")
 download_urls+=("${BASEURL}/COUNTY/tl_${YEAR}_us_county.zip")
 
@@ -87,13 +102,16 @@ for i in "${STATES[@]}"; do
     download_urls+=("${BASEURL}/COUSUB/tl_${YEAR}_${FIPS}_cousub.zip")
     download_urls+=("${BASEURL}/TRACT/tl_${YEAR}_${FIPS}_tract.zip")
 
+    download_urls+=("${BASEURL}/${tabblock_dir}/tl_${YEAR}_${FIPS}_${tabblock_file_label}.zip")
+    download_urls+=("${BASEURL}/BG/tl_${YEAR}_${FIPS}_bg.zip")
+
     no_reject_urls+=("${BASEURL}/FACES ${FIPS}")
 
     URL_FILE="${URLDIR}/${ABBR}_faces_urls.txt"
     if [ -f "${URL_FILE}" ]; then
       verbose_echo "${URL_FILE} already pulled"
     else
-      files=($(get_fips_files $BASEURL/FACES $FIPS))
+      files=($(get_fips_files "${BASEURL}/FACES" "${FIPS}"))
       for i in "${files[@]}"; do
         echo "${BASEURL}/FACES/$i" >> "${URL_FILE}"
         no_reject_urls+=("${BASEURL}/FACES/${i}")
@@ -105,7 +123,7 @@ for i in "${STATES[@]}"; do
     if [ -f "${URL_FILE}" ]; then
       verbose_echo "${URL_FILE} already pulled"
     else
-      files=($(get_fips_files $BASEURL/FEATNAMES $FIPS))
+      files=($(get_fips_files "${BASEURL}/FEATNAMES" "${FIPS}"))
       for i in "${files[@]}"; do
         echo "${BASEURL}/FEATNAMES/${i}" >> "${URL_FILE}"
         no_reject_urls+=("${BASEURL}/FEATNAMES/${i}")
@@ -117,7 +135,7 @@ for i in "${STATES[@]}"; do
     if [ -f "${URL_FILE}" ]; then
       verbose_echo "${URL_FILE} already pulled"
     else
-      files=($(get_fips_files $BASEURL/EDGES $FIPS))
+      files=($(get_fips_files "${BASEURL}/EDGES" "${FIPS}"))
       for i in "${files[@]}"; do
         echo "${BASEURL}/EDGES/${i}" >> "${URL_FILE}"
         no_reject_urls+=("${BASEURL}/EDGES/${i}")
@@ -129,7 +147,7 @@ for i in "${STATES[@]}"; do
     if [ -f "${URL_FILE}" ]; then
       verbose_echo "${URL_FILE} already pulled"
     else
-      files=($(get_fips_files $BASEURL/ADDR $FIPS))
+      files=($(get_fips_files "${BASEURL}/ADDR" "${FIPS}"))
       for i in "${files[@]}"; do
         echo "${BASEURL}/ADDR/${i}" >> "${URL_FILE}"
         no_reject_urls+=("${BASEURL}/ADDR/${i}")
@@ -154,7 +172,7 @@ download_national_and_statewide_files() {
       wget -O "${OUTPUT_FILE}" "${download_url}" --mirror --reject=html
     fi
   done
-  undownloaded_files=$(echo ${download_urls[@]} ${downloaded_files[@]} | tr ' ' '\n' | sort | uniq -u)
+  undownloaded_files=(`echo ${download_urls[@]} ${downloaded_files[@]} | tr ' ' '\n' | sort | uniq -u`)
   n_undownloaded=$(echo "${#undownloaded_files[@]}")
   if [ "${n_undownloaded}" -gt 0 ]; then
     echo "Difference in file_urls and previously downloaded_files"

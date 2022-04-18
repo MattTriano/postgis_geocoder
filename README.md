@@ -37,7 +37,20 @@ At present, it's configured to create a PostgreSQL database, load some extension
 
 4. Recommended step: Turn on a VPN and set a specific server location
 
-Loading a full set of data can take over an hour, and if there's a network hiccup, it can short-circuit the rest of the loading of data. Additionally, as the full set of data is 10s of GB, the US Census site appears to have a limit on how frequently an IP address can download each file.
+Loading a full set of data will involve downloading ~30GB of data from the US Census Bureau site. To limit the load on their servers, Census Bureau servers will only serve any given file to an IP address once per <some_time_period>, but if there's a network hiccup or any other issue, that can force you to have to wait that timespan before you can fill in any gaps in the downloaded set of TIGER files. Using a VPN (or otherwise changing your server's IP address) allows you to download missed files at will.
+
+5. Download Census Data Files
+To download nationwide STATE and COUNTY shapefiles as well as PLACE, COSUB, TRACT, TABBLOCK, and BG shapefiles ((name definitions)[https://www2.census.gov/geo/tiger/TIGER2020/2020_TL_Shapefiles_File_Name_Definitions.pdf]) for the year and states listed in your `.env` file, execute the `download_tiger_data.sh` script as shown below. If you can't execute it, `chmod +x` the file and try again. Add the `-v` flag for verbose output.
+
+    ```bash
+    user@host:~/.../postgis_geocoder$ ./download_tiger_data.sh [-v]
+    ```
+
+**Note: Downloading data for all states involves downloading 30GB+ and (in my experience) takes over 12 hours.**
+
+After the download script has finished, run the script again (it should finish nearly instantly as it won't re-download files if they're already downloaded) and scan through the output. If all lines indicate "All files ... successfully downloaded.", proceed to the next step. Otherwise, run the script again (with your VPN pointing to a different server if necessary).
+
+Second Note: As currently implemented, the data download shell script isn't run through the docker, but it might be in the future.
 
 5. Attempt initialization
     5.1. Build the services used in the postgis_geocoder application
