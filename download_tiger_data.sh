@@ -64,16 +64,13 @@ get_fips_files () {
 }
 
 format_tabblock_variables() {
-  tabblock_dir="TABBLOCK"
-  tabblock_file_label="tabblock10"
+  tabblock10_file_label="tabblock10"
   tabblock_geoid_colname="geoid10"
   if [[ "${YEAR}" -ge 2011 && "${YEAR}" -lt 2014 ]]; then
-    tabblock_file_label="tabblock"
+    tabblock10_file_label="tabblock"
     tabblock_geoid_colname="geoid"
-  elif [[ "${YEAR}" -ge 2020 ]]; then
-    tabblock_dir="TABBLOCK20"
-    tabblock_file_label="tabblock20"
-    tabblock_geoid_colname="geoid20"
+  # elif [[ "${YEAR}" -ge 2020 ]]; then
+  #   tabblock_geoid_colname="geoid20"
   fi
 }
 
@@ -102,8 +99,11 @@ for i in "${STATES[@]}"; do
     download_urls+=("${BASEURL}/COUSUB/tl_${YEAR}_${FIPS}_cousub.zip")
     download_urls+=("${BASEURL}/TRACT/tl_${YEAR}_${FIPS}_tract.zip")
 
-    download_urls+=("${BASEURL}/${tabblock_dir}/tl_${YEAR}_${FIPS}_${tabblock_file_label}.zip")
+    download_urls+=("${BASEURL}/TABBLOCK/tl_${YEAR}_${FIPS}_${tabblock10_file_label}.zip")
     download_urls+=("${BASEURL}/BG/tl_${YEAR}_${FIPS}_bg.zip")
+    # if [[ "${YEAR}" -ge 2020 ]]; then
+    #   download_urls+=("${BASEURL}/TABBLOCK20/tl_${YEAR}_${FIPS}_tabblock20.zip")
+    # fi
 
     no_reject_urls+=("${BASEURL}/FACES ${FIPS}")
 
