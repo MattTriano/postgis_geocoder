@@ -22,7 +22,8 @@ services:
       GEOCODER_STATES: ${GEOCODER_STATES}
       GEOCODER_YEAR: ${GEOCODER_YEAR}
     volumes:
-      - "public_geocoder:/var/lib/postgresql/data"
+      - public_geocoder:/var/lib/postgresql/data
+      - ./gisdata:/gisdata
 
   pgadmin4:
     build: 
