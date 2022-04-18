@@ -58,8 +58,7 @@ if [ "$GEOCODER_STATES" = '*' ]; then
 
 # For each selected state
 IFS=',' read -ra STATES <<< "$GEOCODER_STATES"
-for i in "${STATES[@]}"; 
-do
+for i in "${STATES[@]}"; do
     ABBR=$i
     FIPS=$(get_fips_from_abbr $ABBR)
     if [ $FIPS -eq 0 ]; then
@@ -79,8 +78,7 @@ do
             echo "$URL_FILE already pulled"
         else
             files=($(get_fips_files $BASEURL/FACES $FIPS))
-            for i in "${files[@]}"
-            do
+            for i in "${files[@]}"; do
                 echo "$BASEURL/FACES/$i" >> "$URL_FILE"
                 no_reject_urls+=($BASEURL/FACES/$i)
                 echo $BASEURL/FACES/$i
@@ -92,8 +90,7 @@ do
             echo "$URL_FILE already pulled"
         else
             files=($(get_fips_files $BASEURL/FEATNAMES $FIPS))
-            for i in "${files[@]}"
-            do
+            for i in "${files[@]}"; do
                 echo "$BASEURL/FEATNAMES/$i" >> "$URL_FILE"
                 no_reject_urls+=($BASEURL/FEATNAMES/$i)
                 echo $BASEURL/FEATNAMES/$i
@@ -105,8 +102,7 @@ do
             echo "$URL_FILE already pulled"
         else
             files=($(get_fips_files $BASEURL/EDGES $FIPS))
-            for i in "${files[@]}"
-            do
+            for i in "${files[@]}"; do
                 echo "$BASEURL/EDGES/$i" >> "$URL_FILE"
                 no_reject_urls+=($BASEURL/EDGES/$i)
                 echo $BASEURL/EDGES/$i
@@ -118,8 +114,7 @@ do
             echo "$URL_FILE already pulled"
         else
             files=($(get_fips_files $BASEURL/ADDR $FIPS))
-            for i in "${files[@]}"
-            do
+            for i in "${files[@]}"; do
                 echo "$BASEURL/ADDR/$i" >> "$URL_FILE"
                 no_reject_urls+=($BASEURL/ADDR/$i)
                 echo $BASEURL/ADDR/$i
@@ -138,8 +133,7 @@ done
 
 download_national_and_statewide_files() {
     local downloaded_files=()
-    for download_url in "${download_urls[@]}"
-    do
+    for download_url in "${download_urls[@]}"; do
         OUTPUT_FILE="${GISDATA}/${download_url}"
         # echo $OUTPUT_FILE
         # echo $download_url
@@ -154,9 +148,19 @@ download_national_and_statewide_files() {
             wget -O $OUTPUT_FILE $download_url --mirror --reject=html
         fi
     done
-    echo "Difference in download_urls and previously downloaded_files"
+    # echo "Difference in download_urls and previously downloaded_files"
+    # undownloaded_files=(`echo ${download_urls[@]} ${downloaded_files[@]} | tr ' ' '\n' | sort | uniq -u`)
+    # echo $undownloaded_files
     undownloaded_files=(`echo ${download_urls[@]} ${downloaded_files[@]} | tr ' ' '\n' | sort | uniq -u`)
-    echo $undownloaded_files
+    n_undownloaded=(`echo ${#undownloaded_files[@]}`)
+    if [ $n_undownloaded -gt 0 ]; then
+        echo "Difference in file_urls and previously downloaded_files"
+        echo "Number of undownloaded_files: $n_undownloaded"
+        echo $undownloaded_files
+        echo "Run this shell script again (after redirecting your VPN)."
+    else
+        echo "All national and statewide files successfully downloaded."
+    fi
 }
 
 download_national_and_statewide_files
@@ -180,16 +184,22 @@ download_files_from_url_file () {
         fi
         # echo $file_url
     done
-    echo "Difference in file_urls and previously downloaded_files"
     undownloaded_files=(`echo ${file_urls[@]} ${downloaded_files[@]} | tr ' ' '\n' | sort | uniq -u`)
-    echo $undownloaded_files
+    n_undownloaded=(`echo ${#undownloaded_files[@]}`)
+    if [ $n_undownloaded -gt 0 ]; then
+        echo "Difference in file_urls and previously downloaded_files"
+        echo "Number of undownloaded_files: $n_undownloaded"
+        echo $undownloaded_files
+        echo "Run this shell script again (after redirecting your VPN)."
+    else
+        echo "All files from $file_path successfully downloaded."
+    fi
 }
 
 create_array_of_url_files() {
     local -n url_file_paths=$1
-    for url_file_path in "$URLDIR"/*
-    do
-        echo "$url_file_path"
+    for url_file_path in "$URLDIR"/*; do
+        # echo "$url_file_path"
         url_file_paths+=($url_file_path)
     done
 }
@@ -200,14 +210,10 @@ use_array_of_url_files() {
     # echo "predeclare"
     # declare -p file_paths
     # echo "postdeclare"
-    for file_path in "${file_paths[@]}"
-    do
+    for file_path in "${file_paths[@]}"; do
         echo $file_path
         download_files_from_url_file ${file_path}
     done
 }
 
-
-
-
-# use_array_of_url_files
+use_array_of_url_files
