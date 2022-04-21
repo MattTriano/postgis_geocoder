@@ -5,7 +5,13 @@ This repo project aims to enable users to easily set up their own geocoding infr
 At present, it's provides functionality to:
 * download geospatial data files for the US states you indicate in the `.env` file,
 * create a PostgreSQL database as well as a user with the username and password you set in the `/secrets/postgresql_user.txt` and `/secrets/postgresql_password.txt` (respectively),
-* load postgres extensions [postgis, postgis_topology, fuzzystrmatch, postgis_tiger_geocoder, address_standardizer, and address_standardizer_data_us],
+* load postgres extensions
+    * postgis,
+    * postgis_topology,
+    * fuzzystrmatch,
+    * postgis_tiger_geocoder,
+    * address_standardizer, and
+    * address_standardizer_data_us,
 * create a pgadmin4 database administration server as well as a user with the username and password you set in the `/secrets/pgadmin_user.txt` and `/secrets/pgadmin_password.txt` (respectively), and
 * ingest the downloaded data into the database.
 
