@@ -8,9 +8,9 @@ RUN apt-get update \
 
 # Make data dir
 RUN mkdir -p /gisdata \
-	&& mkdir -p /gisdata/temp \
+	&& mkdir -p /gisdata_temp \
     && chmod 777 -R /gisdata \
-    && chmod 777 -R /gisdata/temp
+    && chmod 777 -R /gisdata_temp
 
 COPY ./init_files/initdb-postgis.sh /docker-entrypoint-initdb.d/10_postgis.sh
 COPY ./init_files/load_tiger_data.sh /docker-entrypoint-initdb.d/11_load_data.sh
