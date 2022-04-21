@@ -1,8 +1,14 @@
 # PostGIS Geocoder
 
-This project is mainly intended to be a turnkey geocoding service for addresses in the US (but it's also largely a learning project I'm using to develop my skill with Docker).
+This repo project aims to enable users to easily set up their own geocoding infrastructure using [US Census Bureau's geospatial TIGER/Line data](https://www.census.gov/geographies/mapping-files/time-series/geo/tiger-line-file.html). 
 
-At present, it's configured to create a PostgreSQL database, load some extensions ()
+At present, it's provides functionality to:
+* download geospatial data files for the US states you indicate in the `.env` file,
+* create a PostgreSQL database as well as a user with the username and password you set in the `/secrets/postgresql_user.txt` and `/secrets/postgresql_password.txt` (respectively),
+* load postgres extensions [postgis, postgis_topology, fuzzystrmatch, postgis_tiger_geocoder, address_standardizer, and address_standardizer_data_us],
+* create a pgadmin4 database administration server as well as a user with the username and password you set in the `/secrets/pgadmin_user.txt` and `/secrets/pgadmin_password.txt` (respectively), and
+* ingest the downloaded data into the database.
+
 
 # Setting up the system
 
@@ -24,7 +30,7 @@ At present, it's configured to create a PostgreSQL database, load some extension
 
     2. Open the file `.../postgis_geocoder/secrets/postgresql_password.txt` in a text editor, type in the string you want to use as the password for the postgres/postGIS database, save, and exit. Make sure there aren't any leading or trailing spaces (unless you want your password to have leading or trailing spaces).
     3. Open the file `.../postgis_geocoder/secrets/postgresql_user.txt` and type in the string you want to use as the username for the postgres/postGIS database.
-    4. 5. 6. Repeat for the remaining 3 files.
+    4. Repeat for the remaining 3 files.
 
 3. Indicate the version (ie year) and set of US States/territories geometries you want to load into the database in the `.../postgis_geocoder/.env` file
 
@@ -36,42 +42,38 @@ At present, it's configured to create a PostgreSQL database, load some extension
     ```
 
 4. Recommended step: Turn on a VPN and set a specific server location
-
-Loading a full set of data will involve downloading ~30GB of data from the US Census Bureau site. To limit the load on their servers, Census Bureau servers will only serve any given file to an IP address once per <some_time_period>, but if there's a network hiccup or any other issue, that can force you to have to wait that timespan before you can fill in any gaps in the downloaded set of TIGER files. Using a VPN (or otherwise changing your server's IP address) allows you to download missed files at will.
+    Loading a full set of data will involve downloading ~30GB of data from the US Census Bureau site. To limit the load on their servers, Census Bureau servers will only serve any given file to an IP address once per <some_time_period>, but if there's a network hiccup or any other issue, that can force you to have to wait that timespan before you can fill in any gaps in the downloaded set of TIGER files. Using a VPN (or otherwise changing your server's IP address) allows you to download missed files at will.
 
 5. Download Census Data Files
-To download nationwide STATE and COUNTY shapefiles as well as PLACE, COSUB, TRACT, TABBLOCK, and BG shapefiles ((name definitions)[https://www2.census.gov/geo/tiger/TIGER2020/2020_TL_Shapefiles_File_Name_Definitions.pdf]) for the year and states listed in your `.env` file, execute the `download_tiger_data.sh` script as shown below. If you can't execute it, `chmod +x` the file and try again. Add the `-v` flag for verbose output.
+    To download nationwide STATE and COUNTY shapefiles as well as PLACE, COSUB, TRACT, TABBLOCK, and BG shapefiles ((name definitions)[https://www2.census.gov/geo/tiger/TIGER2020/2020_TL_Shapefiles_File_Name_Definitions.pdf]) for the year and states listed in your `.env` file, execute the `download_tiger_data.sh` script as shown below. If you can't execute it, `chmod +x` the file and try again. Add the `-v` flag for verbose output.
 
-    ```bash
-    user@host:~/.../postgis_geocoder$ ./download_tiger_data.sh [-v]
-    ```
+        ```bash
+        user@host:~/.../postgis_geocoder$ ./download_tiger_data.sh [-v]
+        ```
 
-**Note: Downloading data for all states involves downloading 30GB+ and (in my experience) takes over 12 hours.**
+    **Note: Downloading data for all states involves downloading 30GB+ and (in my experience) takes over 12 hours.**
 
-After the download script has finished, run the script again (it should finish nearly instantly as it won't re-download files if they're already downloaded) and scan through the output. If all lines indicate "All files ... successfully downloaded.", proceed to the next step. Otherwise, run the script again (with your VPN pointing to a different server if necessary).
+    After the download script has finished, run the script again (it should finish nearly instantly as it won't re-download files if they're already downloaded) and scan through the output. If all lines indicate "All files ... successfully downloaded.", proceed to the next step. Otherwise, run the script again (with your VPN pointing to a different server if necessary).
 
-Second Note: As currently implemented, the data download shell script isn't run through the docker, but it might be in the future.
+    Second Note: As currently implemented, the data download shell script isn't run through the docker, but it might be in the future.
 
 6. Build the images used in the docker-compose application
-Build the images for the docker-compose application via the command below. This step will temporarily double the disk usage of this project as it will copy this project's `context` (ie all of the files in this repo that aren't explicitly excluded in a `.dockerignore` file) to a temporary location that the docker daemon builds from before deleting those temporary copies. So if you include all states in your `.env` file, plan on having ~100GB available before proceeding.
+    Build the images for the docker-compose application via the command below. This step will temporarily double the disk usage of this project as it will copy this project's `context` (ie all of the files in this repo that aren't explicitly excluded in a `.dockerignore` file) to a temporary location that the docker daemon builds from before deleting those temporary copies. So if you include all states in your `.env` file, plan on having ~100GB available before proceeding.
 
-    ```bash
-    user@host:~/.../postgis_geocoder$ docker-compose build
-    ```
+        ```bash
+        user@host:~/.../postgis_geocoder$ docker-compose build
+        ```
 
-You'll have to repeat this step any time you change the `.env` file (or make any changes to the Dockerfiles or init_files).
+    You'll have to repeat this step any time you change the `.env` file (or make any changes to the Dockerfiles or init_files).
 
 7. Initialize the database and ingest data
-The following command starts up the postgis_geocoder docker-compose application. While starting, it will check for the `public_geocoder` volume (indicated in the `docker-compose.yml` file) and if it doesn't find that volume, it will create the volume and run through initialization steps that create the postgis database and ingest data earlier steps downloaded into the `/gisdata` directory.
+    The following command starts up the postgis_geocoder docker-compose application. While starting, it will check for the `public_geocoder` volume (indicated in the `docker-compose.yml` file) and if it doesn't find that volume, it will create the volume and run through initialization steps that create the postgis database and ingest data earlier steps downloaded into the `/gisdata` directory.
 
-    ```bash
-    user@host:~/.../postgis_geocoder$ docker-compose up
-    ```
+        ```bash
+        user@host:~/.../postgis_geocoder$ docker-compose up
+        ```
 
-This step may take a bit and produce a lot of console output. When the data ingestion finishes, the console output will stop rapidly changing; scan through the last ~50 lines to see if the ingestion terminated from an error or if everything ingested smoothly. If you see an error, go to the troubleshooting section, otherwise, your postgis_geocoder server is up and running!
-
-
-
+    This step may take a bit and produce a lot of console output. When the data ingestion finishes, the console output will stop rapidly changing; scan through the last ~50 lines to see if the ingestion terminated from an error or if everything ingested smoothly. If you see an error, go to the troubleshooting section, otherwise, your postgis_geocoder server is up and running!
 
 
 ## ToDo:
@@ -121,3 +123,7 @@ If your data ingestion finished early as a result of some error, look through th
 # Misc
 
 Useful tip: if you want to capture console output to a file, tack on ` 2>&1 | tee build_logs_$(date +"%Y_%m_%d__%H_%M_%S").txt` after your command.
+
+docker-compose build 2>&1 | tee build_logs_$(date +"%Y_%m_%d__%H_%M_%S").txt
+
+2>&1 | tee download_logs_$(date +"%Y_%m_%d__%H_%M_%S").txt
