@@ -52,49 +52,36 @@ After the download script has finished, run the script again (it should finish n
 
 Second Note: As currently implemented, the data download shell script isn't run through the docker, but it might be in the future.
 
-5. Attempt initialization
-    5.1. Build the services used in the postgis_geocoder application
+6. Build the images used in the docker-compose application
+Build the images for the docker-compose application via the command below. This step will temporarily double the disk usage of this project as it will copy this project's `context` (ie all of the files in this repo that aren't explicitly excluded in a `.dockerignore` file) to a temporary location that the docker daemon builds from before deleting those temporary copies. So if you include all states in your `.env` file, plan on having ~100GB available before proceeding.
 
     ```bash
     user@host:~/.../postgis_geocoder$ docker-compose build
     ```
 
-    5.2. Load TIGER data into the database
-    This step will likely take hours (depending on the number of states indicated in your `.env` file)
+You'll have to repeat this step any time you change the `.env` file (or make any changes to the Dockerfiles or init_files).
+
+7. Initialize the database and ingest data
+The following command starts up the postgis_geocoder docker-compose application. While starting, it will check for the `public_geocoder` volume (indicated in the `docker-compose.yml` file) and if it doesn't find that volume, it will create the volume and run through initialization steps that create the postgis database and ingest data earlier steps downloaded into the `/gisdata` directory.
 
     ```bash
-    user@host:~/.../postgis_geocoder$ docker-compose --verbose up 2>&1 | tee compose_up_logs_02.txt
+    user@host:~/.../postgis_geocoder$ docker-compose up
     ```
 
-    5.3. When the console output stabilizes, check the logs to see if all data was loaded. Specifically, look for things like
+This step may take a bit and produce a lot of console output. When the data ingestion finishes, the console output will stop rapidly changing; scan through the last ~50 lines to see if the ingestion terminated from an error or if everything ingested smoothly. If you see an error, go to the troubleshooting section, otherwise, your postgis_geocoder server is up and running!
 
-        ```bash
-        geocoder_postgis_cont | FINISHED --2022-03-27 19:45:15--
-        geocoder_postgis_cont | Total wall clock time: 19s
-        geocoder_postgis_cont | Downloaded: 1 files, 6.5M in 4.6s (1.41 MB/s)
-        geocoder_postgis_cont | https://www2.census.gov/geo/tiger/TIGER2020/EDGES/tl_2020_16085_edges.zip:
-        geocoder_postgis_cont | 2022-03-27 19:46:15 ERROR 500: Internal Server Error.
-        ```
 
-    near the bottom of the file. An error message is an obvious sign of an issue, and from the name of the last requested file (`tl_2020_16085_edges.zip`), we can see how much data was loaded. The process will load all of a state's feature-groups (eg [block, tract, county, edge, etc](https://www2.census.gov/geo/pdfs/maps-data/data/tiger/tgrshp2020/TGRSHP2020_TechDoc.pdf)) before iterating to the next state, and the state is indicated by the 2 digits after the `tl_YYYY_` characters. In this attempt, the run made it through much of state `16`, which, per this [reference](https://www2.census.gov/geo/docs/reference/state.txt), is Idaho.
 
-    5.4 If the run failed, clear the volume via the below command, connect your VPN to a different server, and go back to step 5.1.
-    NOTE: I need to find a better way to do this; ideally one that allows for resuming initialization where it failed rather than simply clearing the data volume and trying again until a run successfully completes without issue, but that's not yet implemented. In any case, it's a very good idea to capture logs during the initialization to help debug in the (likely) case that something causes the initial data load to short circuit.
-    
-        ```bash
-        user@host:~/.../postgis_geocoder$ docker-compose down -v
-        ```
 
 
 ## ToDo:
 Actually do some geocoding, then document it.
 
 
-```
 
 ## Accessing pgadmin4
 
-Go to 0.0.0.0:5678 in a browser and log in.
+Go to 0.0.0.0:4327 in a browser and log in.
 
 ### Connecting a db
 
@@ -103,9 +90,10 @@ You can create a new server by right-clicking **Servers** (in the tray on the le
 In the interface that pops up, 
 1. On the **General** tab: enter any name (this is what you will see in the pgadmin4 interface) 
 1. On the **Connection** tab:
-	1. **Host name/address**: enter the service name for the database from the `docker-compose.yml` file
+	1. **Host name/address**: enter the service name for the database from the `docker-compose.yml` file ("postgis")
 	1. **Port**: Use the port number from inside the container (not the port number for the host machine)
-	1. **Username**: enter the database user name
+	1. **Username**: enter the database user name from `/secrets/postgresql_user.txt`
+    1. **Password**: enter the database password from `/secrets/postgresql_password.txt`
 
 Then click save. If things work, you should be good to go.
 
@@ -117,3 +105,19 @@ The connection command will have the form
 ## Accessing an interactive shell in a running container
 
 `\\$ docker exec -ti geocoder_postgis_cont bash`
+
+# Troubleshooting
+
+If your data ingestion finished early as a result of some error, look through the recent lines to see if it points to a specific data file that couldn't be ingested. If you see such a file, manually delete that file, escape docker-compose application via `ctrl+c` and execute the commands below to clear the volume, redownload data via the download script (and rerun that to confirm everything downloaded), rebuild your docker-compose application, and start it back up.
+
+    ```bash
+    user@host:~/.../postgis_geocoder$ docker-compose down -v
+    user@host:~/.../postgis_geocoder$ ./download_tiger_data.sh
+    user@host:~/.../postgis_geocoder$ ./download_tiger_data.sh
+    user@host:~/.../postgis_geocoder$ docker-compose build
+    user@host:~/.../postgis_geocoder$ docker-compose up
+    ```
+
+# Misc
+
+Useful tip: if you want to capture console output to a file, tack on ` 2>&1 | tee build_logs_$(date +"%Y_%m_%d__%H_%M_%S").txt` after your command.
