@@ -1,6 +1,6 @@
 # PostGIS Geocoder
 
-This repo project aims to enable users to easily set up their own geocoding infrastructure using [US Census Bureau's geospatial TIGER/Line data](https://www.census.gov/geographies/mapping-files/time-series/geo/tiger-line-file.html). 
+This repo project aims to enable users to easily set up their own geocoding infrastructure using [US Census Bureau's geospatial TIGER/Line data](https://www.census.gov/geographies/mapping-files/time-series/geo/tiger-line-file.html).
 
 At present, it's provides functionality to:
 * download geospatial data files for the US states you indicate in the `.env` file,
@@ -13,7 +13,7 @@ At present, it's provides functionality to:
     * address_standardizer, and
     * address_standardizer_data_us,
 * create a pgadmin4 database administration server as well as a user with the username and password you set in the `/secrets/pgadmin_user.txt` and `/secrets/pgadmin_password.txt` (respectively), and
-* ingest the downloaded data into the database.
+* ingest the downloaded data into the database
 
 
 # Setting up the system
@@ -79,7 +79,26 @@ At present, it's provides functionality to:
         user@host:~/.../postgis_geocoder$ docker-compose up
         ```
 
-    This step may take a bit and produce a lot of console output. When the data ingestion finishes, the console output will stop rapidly changing; scan through the last ~50 lines to see if the ingestion terminated from an error or if everything ingested smoothly. If you see an error, go to the troubleshooting section, otherwise, your postgis_geocoder server is up and running!
+    This step may take a bit and produce a lot of console output. When the data ingestion finishes, the console output will stop rapidly changing; scan through the last ~15 lines to see if the ingestion terminated from an error or if everything ingested smoothly. If you see an error, go to the troubleshooting section, but if your output looks like the below, your postgis_geocoder server is up and running!
+
+        ```bash
+        ...
+        geocoder_postgis_cont | INFO:  "wv_zip_state_loc": scanned 6 of 6 pages, containing 787 live rows and 0 dead rows; 403 rows in sample, 787 estimated total rows
+        geocoder_postgis_cont | INFO:  "wi_zip_state_loc": scanned 11 of 11 pages, containing 1581 live rows and 0 dead rows; 738 rows in sample, 1581 estimated total rows
+        geocoder_postgis_cont | INFO:  "wy_zip_state_loc": scanned 3 of 3 pages, containing 344 live rows and 0 dead rows; 201 rows in sample, 344 estimated total rows
+        geocoder_postgis_cont | VACUUM
+        geocoder_postgis_cont |
+        geocoder_postgis_cont | 2022-04-21 21:10:49.282 UTC [50] LOG:  received fast shutdown request
+        geocoder_postgis_cont | waiting for server to shut down....2022-04-21 21:10:49.287 UTC [50] LOG:  aborting any active transactions
+        geocoder_postgis_cont | 2022-04-21 21:10:49.288 UTC [50] LOG:  background worker "logical replication launcher" (PID 57) exited with exit code 1
+        geocoder_postgis_cont | 2022-04-21 21:10:49.293 UTC [52] LOG:  shutting down
+        geocoder_postgis_cont | 2022-04-21 21:10:49.451 UTC [50] LOG:  database system is shut down
+        geocoder_postgis_cont |  done
+        geocoder_postgis_cont | server stopped
+        geocoder_postgis_cont |
+        geocoder_postgis_cont | PostgreSQL init process complete; ready for start up.
+        ...
+        ```
 
 
 ## ToDo:
