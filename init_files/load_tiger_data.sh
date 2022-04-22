@@ -271,24 +271,24 @@ load_state_data () {
   ${PSQL} -c "ALTER TABLE tiger_data.${abbr}_zip_state ADD CONSTRAINT chk_statefp CHECK (statefp = '${FIPS}');"
   ${PSQL} -c "vacuum analyze tiger_data.${abbr}_addr;"
 
-  #############
-  # Tabblock
-  #############
-  cd "${GISDATA}/${BASEURL}/TABBLOCK"
-  rm -f ${TMPDIR}/*.*
-  ${PSQL} -c "DROP SCHEMA IF EXISTS tiger_staging CASCADE;"
-  ${PSQL} -c "CREATE SCHEMA tiger_staging;"
-  for z in tl_${YEAR}_${FIPS}*_${tabblock10_file_label}.zip ; do
-    $UNZIPTOOL -o -d $TMPDIR $z;
-  done
+#   #############
+#   # Tabblock
+#   #############
+#   cd "${GISDATA}/${BASEURL}/TABBLOCK"
+#   rm -f ${TMPDIR}/*.*
+#   ${PSQL} -c "DROP SCHEMA IF EXISTS tiger_staging CASCADE;"
+#   ${PSQL} -c "CREATE SCHEMA tiger_staging;"
+#   for z in tl_${YEAR}_${FIPS}*_${tabblock10_file_label}.zip ; do
+#     $UNZIPTOOL -o -d $TMPDIR $z;
+#   done
 
-  cd $TMPDIR;
-  ${PSQL} -c "CREATE TABLE tiger_data.${abbr}_tabblock(CONSTRAINT pk_${abbr}_tabblock PRIMARY KEY (tabblock_id)) INHERITS(tiger.tabblock);"
-  ${SHP2PGSQL} -D -c -s 4269 -g the_geom -W "latin1" "tl_${YEAR}_${FIPS}_${tabblock10_file_label}.dbf" "tiger_staging.${abbr}_${tabblock10_file_label}" | ${PSQL}
-  ${PSQL} -c "ALTER TABLE tiger_staging.${abbr}_${tabblock10_file_label} RENAME ${tabblock_geoid_colname} TO tabblock_id;  SELECT loader_load_staged_data(lower('${abbr}_${tabblock10_file_label}'), lower('${abbr}_tabblock')); "
-  ${PSQL} -c "ALTER TABLE tiger_data.${abbr}_tabblock ADD CONSTRAINT chk_statefp CHECK (statefp = '${FIPS}');"
-  ${PSQL} -c "CREATE INDEX tiger_data_${abbr}_tabblock_the_geom_gist ON tiger_data.${abbr}_tabblock USING gist(the_geom);"
-  ${PSQL} -c "vacuum analyze tiger_data.${abbr}_tabblock;"
+#   cd $TMPDIR;
+#   ${PSQL} -c "CREATE TABLE tiger_data.${abbr}_tabblock(CONSTRAINT pk_${abbr}_tabblock PRIMARY KEY (tabblock_id)) INHERITS(tiger.tabblock);"
+#   ${SHP2PGSQL} -D -c -s 4269 -g the_geom -W "latin1" "tl_${YEAR}_${FIPS}_${tabblock10_file_label}.dbf" "tiger_staging.${abbr}_${tabblock10_file_label}" | ${PSQL}
+#   ${PSQL} -c "ALTER TABLE tiger_staging.${abbr}_${tabblock10_file_label} RENAME ${tabblock_geoid_colname} TO tabblock_id;  SELECT loader_load_staged_data(lower('${abbr}_${tabblock10_file_label}'), lower('${abbr}_tabblock')); "
+#   ${PSQL} -c "ALTER TABLE tiger_data.${abbr}_tabblock ADD CONSTRAINT chk_statefp CHECK (statefp = '${FIPS}');"
+#   ${PSQL} -c "CREATE INDEX tiger_data_${abbr}_tabblock_the_geom_gist ON tiger_data.${abbr}_tabblock USING gist(the_geom);"
+#   ${PSQL} -c "vacuum analyze tiger_data.${abbr}_tabblock;"
 
   #############
   # Block Group
