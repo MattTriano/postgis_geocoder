@@ -117,7 +117,7 @@ def write_addresses_to_temporary_address_table(addr_df: pd.DataFrame, engine: En
 def setup_temporary_address_table_schema_for_addr_normalization(engine: Engine) -> None:
     execute_structural_command(
         query="""
-            ALTER TABLE temporary_normalized_addrs
+            ALTER TABLE temporary_address_table
                 ADD COLUMN address integer DEFAULT NULL,
                 ADD COLUMN predirabbrev varchar(5) DEFAULT NULL,
                 ADD COLUMN streetname varchar(50) DEFAULT NULL,
@@ -137,7 +137,7 @@ def setup_temporary_address_table_schema_for_addr_normalization(engine: Engine) 
 
 def normalize_temporary_address_table_addr_batch(engine: Engine, batch_size: int = 100) -> None:
     query = f"""
-        UPDATE temporary_normalized_addrs
+        UPDATE temporary_address_table
         SET 
             (
                 address, predirabbrev, streetname, streettypeabbrev, postdirabbrev,
@@ -150,18 +150,18 @@ def normalize_temporary_address_table_addr_batch(engine: Engine, batch_size: int
         FROM 
             (
                 SELECT full_address, streetname
-                FROM temporary_normalized_addrs
+                FROM temporary_address_table
                 WHERE streetname IS NULL LIMIT {batch_size}
             ) AS a
             LEFT JOIN LATERAL
             normalize_address(a.full_address) AS na
             ON true
-        WHERE a.full_address = temporary_normalized_addrs.full_address;
+        WHERE a.full_address = temporary_address_table.full_address;
     """
     execute_structural_command(query=query, engine=engine)
 
 
-def normalize_temporary_address_table_addrs(engine: Engine, batch_size=100) -> None:
+def normalize_temporary_address_table_addrs(engine: Engine, batch_size: int = 100) -> None:
     setup_temporary_address_table_schema_for_addr_normalization(engine=engine)
     normalize_temporary_address_table_addr_batch(engine=engine, batch_size=batch_size)
 
