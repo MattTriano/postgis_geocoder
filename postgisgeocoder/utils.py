@@ -7,6 +7,43 @@ import psycopg2 as pg
 from sqlalchemy import create_engine, event
 from sqlalchemy.engine.url import URL
 from sqlalchemy.engine.base import Engine
+from sqlalchemy import text
+
+
+def get_project_root_dir() -> os.path:
+    if "__file__" in globals().keys():
+        root_dir = os.path.dirname(os.path.abspath("__file__"))
+    else:
+        root_dir = os.path.dirname(os.path.abspath("."))
+    assert ".git" in os.listdir(root_dir)
+    assert "postgis_geocoder" in root_dir
+    return root_dir
+
+
+def get_connection_url_from_secrets() -> URL:
+    secret_dir = os.path.join(get_project_root_dir(), "secrets")
+
+    with open(os.path.join(secret_dir, "postgresql_password.txt"), "r") as sf:
+        password = sf.read()
+    with open(os.path.join(secret_dir, "postgresql_user.txt"), "r") as sf:
+        username = sf.read()
+    with open(os.path.join(secret_dir, "postgresql_db.txt"), "r") as sf:
+        db_name = sf.read()
+
+    return URL.create(
+        drivername="postgresql+psycopg2",
+        host="localhost",
+        username=username,
+        database=db_name,
+        password=password,
+        port=4326,
+    )
+
+
+def get_engine_from_secrets() -> Engine:
+    connection_url = get_connection_url_from_secrets()
+    engine = create_engine(connection_url, future=True)
+    return engine
 
 
 def get_db_connection_from_credential_file(
@@ -47,32 +84,86 @@ def get_db_connection_url_from_credential_file(
 def get_engine_from_credential_file(credential_path: str) -> Engine:
     """Returns an sqlalchemy engine with the permissions corresponding to
     the credentials in the file at credential_path."""
-    connection_url = get_db_connection_url_from_credential_file(
-        credential_path
-    )
+    connection_url = get_db_connection_url_from_credential_file(credential_path)
     return create_engine(connection_url)
 
 
-def format_addresses_for_standardization(
-    df: pd.DataFrame, addr_col: str
-) -> str:
-    addrs_formatted_for_standardization = ", ".join(
-        [f"('{addr}')" for addr in df[addr_col].values]
-    )
+def format_addresses_for_standardization(df: pd.DataFrame, addr_col: str) -> str:
+    addrs_formatted_for_standardization = ", ".join([f"('{addr}')" for addr in df[addr_col].values])
     return addrs_formatted_for_standardization
 
 
-def execute_result_returning_query(
-    query: str, conn: pg.extensions.connection
-) -> pd.DataFrame:
-    cur = conn.cursor()
-    cur.execute(query)
-    results = cur.fetchall()
-    results_df = pd.DataFrame(
-        results, columns=[el[0] for el in cur.description]
-    )
-    cur.close()
+def execute_result_returning_query(query: str, engine: Engine) -> pd.DataFrame:
+    with engine.connect() as conn:
+        result = conn.execute(text(query))
+        results_df = pd.DataFrame(result.fetchall(), columns=result.keys())
+        conn.commit()
     return results_df
+
+
+def execute_structural_command(query: str, engine: Engine) -> pd.DataFrame:
+    with engine.connect() as conn:
+        conn.execute(text(query))
+        conn.commit()
+
+
+def write_addresses_to_temporary_address_table(addr_df: pd.DataFrame, engine: Engine) -> None:
+    assert addr_df.shape[1] == 1, "Only one column permitted for addr_df."
+    assert addr_df.columns[0] == "full_address", "Only 'full_address' permitted in addr_df."
+    execute_structural_command(query="DROP TABLE IF EXISTS temporary_address_table;", engine=engine)
+    addr_df.to_sql(name="temporary_address_table", con=engine, index=False)
+
+
+def setup_temporary_address_table_schema_for_addr_normalization(engine: Engine) -> None:
+    execute_structural_command(
+        query="""
+            ALTER TABLE temporary_normalized_addrs
+                ADD COLUMN address integer DEFAULT NULL,
+                ADD COLUMN predirabbrev varchar(5) DEFAULT NULL,
+                ADD COLUMN streetname varchar(50) DEFAULT NULL,
+                ADD COLUMN streettypeabbrev varchar(10) DEFAULT NULL,
+                ADD COLUMN postdirabbrev varchar(5) DEFAULT NULL,
+                ADD COLUMN internal varchar(20) DEFAULT NULL,
+                ADD COLUMN location varchar(50) DEFAULT NULL,
+                ADD COLUMN stateabbrev varchar(2) DEFAULT NULL,
+                ADD COLUMN zip varchar(5) DEFAULT NULL,
+                ADD COLUMN parsed boolean DEFAULT NULL,
+                ADD COLUMN zip4 varchar(4) DEFAULT NULL,
+                ADD COLUMN address_alphanumeric varchar(10) DEFAULT NULL;
+        """,
+        engine=engine,
+    )
+
+
+def normalize_temporary_address_table_addr_batch(engine: Engine, batch_size: int = 100) -> None:
+    query = f"""
+        UPDATE temporary_normalized_addrs
+        SET 
+            (
+                address, predirabbrev, streetname, streettypeabbrev, postdirabbrev,
+                internal, location, stateabbrev, zip, parsed, zip4, address_alphanumeric
+            ) = (
+                (na).address, (na).predirabbrev, (na).streetname, (na).streettypeabbrev,
+                (na).postdirabbrev, (na).internal, (na).location, (na).stateabbrev,
+                (na).zip, (na).parsed, (na).zip4, (na).address_alphanumeric
+            )
+        FROM 
+            (
+                SELECT full_address, streetname
+                FROM temporary_normalized_addrs
+                WHERE streetname IS NULL LIMIT {batch_size}
+            ) AS a
+            LEFT JOIN LATERAL
+            normalize_address(a.full_address) AS na
+            ON true
+        WHERE a.full_address = temporary_normalized_addrs.full_address;
+    """
+    execute_structural_command(query=query, engine=engine)
+
+
+def normalize_temporary_address_table_addrs(engine: Engine, batch_size=100) -> None:
+    setup_temporary_address_table_schema_for_addr_normalization(engine=engine)
+    normalize_temporary_address_table_addr_batch(engine=engine, batch_size=batch_size)
 
 
 def get_standardized_address_df(
@@ -162,9 +253,9 @@ def geocode_list_of_addresses(
             top_n=top_n,
             restrict_geom_query=restrict_geom_query,
         )
-        geocode_results_df["addr_similarity_ratio"] = geocode_results_df[
-            "geocoded_address"
-        ].apply(lambda x: similar(addr_to_geocode, x.upper()))
+        geocode_results_df["addr_similarity_ratio"] = geocode_results_df["geocoded_address"].apply(
+            lambda x: similar(addr_to_geocode, x.upper())
+        )
         num_addrs_left = num_addrs_left - 1
         full_geocoded_results.append(geocode_results_df)
         if num_addrs_left % print_every_n == 0:
