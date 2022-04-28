@@ -89,6 +89,22 @@ def get_engine_from_credential_file(credential_path: str) -> Engine:
     return create_engine(connection_url)
 
 
+def get_default_geocode_settings(engine: Engine) -> pd.DataFrame:
+    """Returns default geocode_settings."""
+    default_geocode_settings = execute_result_returning_query(
+        query="SELECT * FROM tiger.geocode_settings;", engine=engine
+    )
+    return default_geocode_settings
+
+
+def get_current_geocode_settings(engine: Engine) -> pd.DataFrame:
+    """Returns default geocode_settings."""
+    geocode_settings = execute_result_returning_query(
+        query="SELECT * FROM tiger.geocode_settings;", engine=engine
+    )
+    return geocode_settings
+
+
 def format_addresses_for_standardization(df: pd.DataFrame, addr_col: str) -> str:
     addrs_formatted_for_standardization = ", ".join([f"('{addr}')" for addr in df[addr_col].values])
     return addrs_formatted_for_standardization
@@ -199,12 +215,17 @@ def to_sql_on_conflict_do_nothing(table, conn, keys, data_iter):
     conn.execute(insert(table.table).on_conflict_do_nothing(), data)
 
 
-def add_addresses_to_address_table(addr_df: pd.DataFrame, engine: Engine) -> None:
+def add_addresses_to_address_table(
+    addr_df: pd.DataFrame,
+    engine: Engine,
+    schema_name: str = "user_data",
+    table_name: str = "address_table",
+) -> None:
     assert addr_df.shape[1] == 1, "Only one column permitted for addr_df."
     assert addr_df.columns[0] == "full_address", "Only 'full_address' permitted in addr_df."
     addr_df.to_sql(
-        name="address_table",
-        schema="user_data",
+        name=table_name,
+        schema=schema_name,
         con=engine,
         index=False,
         if_exists="append",
