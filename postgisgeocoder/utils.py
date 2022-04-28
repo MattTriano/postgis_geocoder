@@ -8,6 +8,7 @@ from sqlalchemy import create_engine, event
 from sqlalchemy.engine.url import URL
 from sqlalchemy.engine.base import Engine
 from sqlalchemy import text
+from sqlalchemy.dialects.postgresql import insert
 
 
 def get_project_root_dir() -> os.path:
@@ -101,43 +102,75 @@ def execute_result_returning_query(query: str, engine: Engine) -> pd.DataFrame:
     return results_df
 
 
-def execute_structural_command(query: str, engine: Engine) -> pd.DataFrame:
+def execute_structural_command(query: str, engine: Engine) -> None:
     with engine.connect() as conn:
         conn.execute(text(query))
         conn.commit()
 
 
-def write_addresses_to_temporary_address_table(addr_df: pd.DataFrame, engine: Engine) -> None:
-    assert addr_df.shape[1] == 1, "Only one column permitted for addr_df."
-    assert addr_df.columns[0] == "full_address", "Only 'full_address' permitted in addr_df."
-    execute_structural_command(query="DROP TABLE IF EXISTS temporary_address_table;", engine=engine)
-    addr_df.to_sql(name="temporary_address_table", con=engine, index=False)
+def create_user_data_schema(engine: Engine) -> None:
+    execute_structural_command(query="CREATE SCHEMA IF NOT EXISTS user_data;", engine=engine)
 
 
-def setup_temporary_address_table_schema_for_addr_normalization(engine: Engine) -> None:
+def create_schema(engine: Engine, schema_name: str) -> None:
+    execute_structural_command(query=f"CREATE SCHEMA IF NOT EXISTS {schema_name};", engine=engine)
+
+
+def create_address_table(
+    engine: Engine, schema_name: str = "user_data", table_name: str = "address_table"
+) -> None:
     execute_structural_command(
-        query="""
-            ALTER TABLE temporary_address_table
-                ADD COLUMN address integer DEFAULT NULL,
-                ADD COLUMN predirabbrev varchar(5) DEFAULT NULL,
-                ADD COLUMN streetname varchar(50) DEFAULT NULL,
-                ADD COLUMN streettypeabbrev varchar(10) DEFAULT NULL,
-                ADD COLUMN postdirabbrev varchar(5) DEFAULT NULL,
-                ADD COLUMN internal varchar(20) DEFAULT NULL,
-                ADD COLUMN location varchar(50) DEFAULT NULL,
-                ADD COLUMN stateabbrev varchar(2) DEFAULT NULL,
-                ADD COLUMN zip varchar(5) DEFAULT NULL,
-                ADD COLUMN parsed boolean DEFAULT NULL,
-                ADD COLUMN zip4 varchar(4) DEFAULT NULL,
-                ADD COLUMN address_alphanumeric varchar(10) DEFAULT NULL;
+        query=f"""
+            CREATE TABLE IF NOT EXISTS {schema_name}.{table_name} (
+                full_address varchar(100) PRIMARY KEY 
+            );
         """,
         engine=engine,
     )
 
 
-def normalize_temporary_address_table_addr_batch(engine: Engine, batch_size: int = 100) -> None:
+def add_addr_normalization_columns_to_address_table(
+    engine: Engine, schema_name: str = "user_data", table_name: str = "address_table"
+) -> None:
+    execute_structural_command(
+        query=f"""
+            ALTER TABLE {schema_name}.{table_name}
+                ADD COLUMN IF NOT EXISTS address integer DEFAULT NULL,
+                ADD COLUMN IF NOT EXISTS predirabbrev varchar(5) DEFAULT NULL,
+                ADD COLUMN IF NOT EXISTS streetname varchar(50) DEFAULT NULL,
+                ADD COLUMN IF NOT EXISTS streettypeabbrev varchar(10) DEFAULT NULL,
+                ADD COLUMN IF NOT EXISTS postdirabbrev varchar(5) DEFAULT NULL,
+                ADD COLUMN IF NOT EXISTS internal varchar(20) DEFAULT NULL,
+                ADD COLUMN IF NOT EXISTS location varchar(50) DEFAULT NULL,
+                ADD COLUMN IF NOT EXISTS stateabbrev varchar(2) DEFAULT NULL,
+                ADD COLUMN IF NOT EXISTS zip varchar(5) DEFAULT NULL,
+                ADD COLUMN IF NOT EXISTS parsed boolean DEFAULT NULL,
+                ADD COLUMN IF NOT EXISTS zip4 varchar(4) DEFAULT NULL,
+                ADD COLUMN IF NOT EXISTS address_alphanumeric varchar(10) DEFAULT NULL;
+        """,
+        engine=engine,
+    )
+
+
+def setup_address_table(
+    engine: Engine, schema_name: str = "user_data", table_name: str = "address_table"
+) -> None:
+    create_schema(engine=engine, schema_name=schema_name)
+    create_address_table(engine=engine, schema_name=schema_name, table_name=table_name)
+    add_addr_normalization_columns_to_address_table(
+        engine=engine, schema_name=schema_name, table_name=table_name
+    )
+
+
+def batch_normalize_address_table(
+    engine: Engine,
+    schema_name: str = "user_data",
+    table_name: str = "address_table",
+    batch_size: int = 100,
+) -> None:
+    full_table_name = f"{schema_name}.{table_name}"
     query = f"""
-        UPDATE temporary_address_table
+        UPDATE {full_table_name}
         SET 
             (
                 address, predirabbrev, streetname, streettypeabbrev, postdirabbrev,
@@ -150,20 +183,33 @@ def normalize_temporary_address_table_addr_batch(engine: Engine, batch_size: int
         FROM 
             (
                 SELECT full_address, streetname
-                FROM temporary_address_table
+                FROM {full_table_name}
                 WHERE streetname IS NULL LIMIT {batch_size}
             ) AS a
             LEFT JOIN LATERAL
             normalize_address(a.full_address) AS na
             ON true
-        WHERE a.full_address = temporary_address_table.full_address;
+        WHERE a.full_address = {full_table_name}.full_address;
     """
     execute_structural_command(query=query, engine=engine)
 
 
-def normalize_temporary_address_table_addrs(engine: Engine, batch_size: int = 100) -> None:
-    setup_temporary_address_table_schema_for_addr_normalization(engine=engine)
-    normalize_temporary_address_table_addr_batch(engine=engine, batch_size=batch_size)
+def to_sql_on_conflict_do_nothing(table, conn, keys, data_iter):
+    data = [dict(zip(keys, row)) for row in data_iter]
+    conn.execute(insert(table.table).on_conflict_do_nothing(), data)
+
+
+def add_addresses_to_address_table(addr_df: pd.DataFrame, engine: Engine) -> None:
+    assert addr_df.shape[1] == 1, "Only one column permitted for addr_df."
+    assert addr_df.columns[0] == "full_address", "Only 'full_address' permitted in addr_df."
+    addr_df.to_sql(
+        name="address_table",
+        schema="user_data",
+        con=engine,
+        index=False,
+        if_exists="append",
+        method=to_sql_on_conflict_do_nothing,
+    )
 
 
 def get_standardized_address_df(
