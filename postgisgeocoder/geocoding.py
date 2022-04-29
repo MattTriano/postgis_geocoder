@@ -129,6 +129,34 @@ def add_addresses_to_address_table(
     )
 
 
+def batch_geocode_address_table(
+    engine: Engine,
+    schema_name: str = "user_data",
+    table_name: str = "address_table",
+    batch_size: int = 100,
+    rating_threshold: int = 22,
+) -> None:
+    full_table_name = f"{schema_name}.{table_name}"
+    query = f"""
+        UPDATE {full_table_name}
+        SET 
+            (rating, norm_address, geomout) = 
+            (COALESCE((g).rating,-1 ), pprint_addy( (g).addy ), (g).geomout)
+        FROM (
+                SELECT full_address, (address, predirabbrev, streetname, streettypeabbrev, 
+                        postdirabbrev, internal, location, stateabbrev, zip, parsed, zip4,
+                        address_alphanumeric)::norm_addy AS addy
+                FROM {full_table_name}
+                WHERE rating IS NULL LIMIT {batch_size}
+            ) AS a
+            LEFT JOIN LATERAL
+            geocode(a.addy) AS g
+            ON ((g).rating < {rating_threshold})
+        WHERE a.full_address = {full_table_name}.full_address;
+    """
+    execute_structural_command(query=query, engine=engine)
+
+
 def get_default_geocode_settings(engine: Engine) -> pd.DataFrame:
     """Returns default geocode_settings."""
     default_geocode_settings = execute_result_returning_query(
