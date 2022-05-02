@@ -80,29 +80,6 @@ def get_engine_from_secrets(use_sqlalchemy_v2: bool = False, echo: bool = False)
 #     return create_engine(connection_url)
 
 
-# def _execute_result_returning_query_sqlalchemy_v1(query: str, engine: Engine) -> pd.DataFrame:
-#     with engine.raw_connection().cursor() as cur:
-#         cur.execute(query)
-#         results_df = pd.DataFrame(cur.fetchall(), columns=[el[0] for el in cur.description])
-#     return results_df
-
-
-# def _execute_result_returning_query_sqlalchemy_v2(query: str, engine: Engine) -> pd.DataFrame:
-#     with engine.connect() as conn:
-#         result = conn.execute(text(query))
-#         results_df = pd.DataFrame(result.fetchall(), columns=result.keys())
-#         conn.commit()
-#     return results_df
-
-
-# def execute_result_returning_query(query: str, engine: Engine) -> pd.DataFrame:
-#     if engine._is_future:
-#         results_df = _execute_result_returning_query_sqlalchemy_v2(query=query, engine=engine)
-#     else:
-#         results_df = _execute_result_returning_query_sqlalchemy_v1(query=query, engine=engine)
-#     return results_df
-
-
 def execute_result_returning_query(query: str, engine: Engine) -> pd.DataFrame:
     with engine.connect() as conn:
         result = conn.execute(text(query))
@@ -110,23 +87,6 @@ def execute_result_returning_query(query: str, engine: Engine) -> pd.DataFrame:
         if engine._is_future:
             conn.commit()
     return results_df
-
-
-# def _execute_structural_command_sqlalchemy_v1(query: str, engine: Engine) -> None:
-#     with engine.connect() as conn:
-#         transaction = conn.begin()
-#         conn.execute(text(query))
-#         transaction.commit()
-
-# # def _execute_structural_command_as_a_transaction_sqlalchemy_v1(query: str, engine: Engine) -> None:
-# #     with engine.connect().execution_options(autocommit=True) as conn:
-# #         conn.execute(text(query))
-
-
-# def _execute_structural_command_sqlalchemy_v2(query: str, engine: Engine) -> None:
-#     with engine.connect() as conn:
-#         conn.execute(text(query))
-#         conn.commit()
 
 
 def execute_structural_command(query: str, engine: Engine) -> None:
