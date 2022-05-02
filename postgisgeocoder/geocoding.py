@@ -272,23 +272,92 @@ def _apply_function_to_all_address_table_rows(
         )
 
 
-def normalize_all_addresses_in_address_table(engine: Engine, batch_size: int = 100) -> None:
+def normalize_all_addresses_in_address_table(
+    engine: Engine,
+    schema_name: str = "user_data",
+    table_name: str = "address_table",
+    batch_size: int = 100,
+) -> None:
     _apply_function_to_all_address_table_rows(
         engine=engine,
-        schema_name="user_data",
-        table_name="address_table",
+        schema_name=schema_name,
+        table_name=table_name,
         null_check_col="streetname",
         batch_func=batch_normalize_address_table,
         batch_size=batch_size,
     )
 
 
-def standardize_all_addresses_in_address_table(engine: Engine, batch_size: int = 100) -> None:
+def standardize_all_addresses_in_address_table(
+    engine: Engine,
+    schema_name: str = "user_data",
+    table_name: str = "std_address_table",
+    batch_size: int = 100,
+) -> None:
     _apply_function_to_all_address_table_rows(
         engine=engine,
-        schema_name="user_data",
-        table_name="std_address_table",
+        schema_name=schema_name,
+        table_name=table_name,
         null_check_col="name",
         batch_func=batch_standardize_address_table,
+        batch_size=batch_size,
+    )
+
+
+def batch_geocode_standardized_address_table(
+    engine: Engine,
+    schema_name: str = "user_data",
+    table_name: str = "std_address_table",
+    batch_size: int = 100,
+    rating_threshold: int = 22,
+) -> None:
+    full_table_name = f"{schema_name}.{table_name}"
+    query = f"""
+        UPDATE {full_table_name}
+        SET
+            (rating, norm_address, geomout) =
+            (COALESCE((g).rating,-1 ), pprint_addy( (g).addy ), (g).geomout)
+        FROM (
+                SELECT full_address, (house_num, predir, name, suftype, sufdir, unit,
+                       city, state, postcode, true, NULL, NULL)::norm_addy AS addy
+                FROM {full_table_name}
+                WHERE rating IS NULL LIMIT {batch_size}
+            ) AS a
+            LEFT JOIN LATERAL
+            geocode(a.addy) AS g
+            ON ((g).rating < {rating_threshold})
+        WHERE a.full_address = {full_table_name}.full_address;
+    """
+    execute_structural_command(query=query, engine=engine)
+
+
+def geocode_all_addresses_in_standardized_address_table(
+    engine: Engine,
+    schema_name: str = "user_data",
+    table_name: str = "std_address_table",
+    batch_size: int = 100,
+) -> None:
+    _apply_function_to_all_address_table_rows(
+        engine=engine,
+        schema_name=schema_name,
+        table_name=table_name,
+        null_check_col="rating",
+        batch_func=batch_geocode_standardized_address_table,
+        batch_size=batch_size,
+    )
+
+
+def geocode_all_addresses_in_normalized_address_table(
+    engine: Engine,
+    schema_name: str = "user_data",
+    table_name: str = "address_table",
+    batch_size: int = 100,
+) -> None:
+    _apply_function_to_all_address_table_rows(
+        engine=engine,
+        schema_name=schema_name,
+        table_name=table_name,
+        null_check_col="rating",
+        batch_func=batch_geocode_address_table,
         batch_size=batch_size,
     )
