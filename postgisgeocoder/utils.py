@@ -4,6 +4,7 @@ import yaml
 
 import pandas as pd
 import psycopg2 as pg
+import shapely
 from sqlalchemy import create_engine, event
 from sqlalchemy.engine.url import URL
 from sqlalchemy.engine.base import Engine
@@ -37,8 +38,15 @@ def func_timer(func):
     return wrapper_func_timer
 
 
-def create_schema(engine: Engine, schema_name: str) -> None:
-    execute_structural_command(query=f"CREATE SCHEMA IF NOT EXISTS {schema_name};", engine=engine)
+def coerce_postgis_geom_valued_string_to_gpd_geom(geom_str: str) -> shapely.geometry:
+    if geom_str is not None:
+        return shapely.wkb.loads(geom_str, hex=True)
+    else:
+        return None
+
+
+def decode_geom_valued_column_to_geometry_type(series: pd.Series) -> pd.Series:
+    return pd.Series(map(coerce_postgis_geom_valued_string_to_gpd_geom, series))
 
 
 def get_standardized_address_df(
