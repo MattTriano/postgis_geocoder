@@ -1,7 +1,10 @@
+from typing import Callable
+
 import geopandas as gpd
 import pandas as pd
 from sqlalchemy.engine.base import Engine
 from sqlalchemy.dialects.postgresql import insert
+from tqdm import tqdm
 
 from postgisgeocoder.db import (
     execute_result_returning_query,
@@ -34,17 +37,17 @@ def add_addr_normalization_columns_to_address_table(
         query=f"""
             ALTER TABLE {schema_name}.{table_name}
                 ADD COLUMN IF NOT EXISTS address integer DEFAULT NULL,
-                ADD COLUMN IF NOT EXISTS predirabbrev varchar(5) DEFAULT NULL,
-                ADD COLUMN IF NOT EXISTS streetname varchar(50) DEFAULT NULL,
-                ADD COLUMN IF NOT EXISTS streettypeabbrev varchar(10) DEFAULT NULL,
-                ADD COLUMN IF NOT EXISTS postdirabbrev varchar(5) DEFAULT NULL,
-                ADD COLUMN IF NOT EXISTS internal varchar(20) DEFAULT NULL,
-                ADD COLUMN IF NOT EXISTS location varchar(50) DEFAULT NULL,
-                ADD COLUMN IF NOT EXISTS stateabbrev varchar(2) DEFAULT NULL,
-                ADD COLUMN IF NOT EXISTS zip varchar(5) DEFAULT NULL,
+                ADD COLUMN IF NOT EXISTS predirabbrev varchar DEFAULT NULL,
+                ADD COLUMN IF NOT EXISTS streetname varchar DEFAULT NULL,
+                ADD COLUMN IF NOT EXISTS streettypeabbrev varchar DEFAULT NULL,
+                ADD COLUMN IF NOT EXISTS postdirabbrev varchar DEFAULT NULL,
+                ADD COLUMN IF NOT EXISTS internal varchar DEFAULT NULL,
+                ADD COLUMN IF NOT EXISTS location varchar DEFAULT NULL,
+                ADD COLUMN IF NOT EXISTS stateabbrev varchar DEFAULT NULL,
+                ADD COLUMN IF NOT EXISTS zip varchar DEFAULT NULL,
                 ADD COLUMN IF NOT EXISTS parsed boolean DEFAULT NULL,
-                ADD COLUMN IF NOT EXISTS zip4 varchar(4) DEFAULT NULL,
-                ADD COLUMN IF NOT EXISTS address_alphanumeric varchar(10) DEFAULT NULL;
+                ADD COLUMN IF NOT EXISTS zip4 varchar DEFAULT NULL,
+                ADD COLUMN IF NOT EXISTS address_alphanumeric varchar DEFAULT NULL;
         """,
         engine=engine,
     )
@@ -171,3 +174,121 @@ def get_current_geocode_settings(engine: Engine) -> pd.DataFrame:
         query="SELECT * FROM tiger.geocode_settings;", engine=engine
     )
     return geocode_settings
+
+
+def count_rows_w_null_values_in_a_column(
+    null_check_col: str,
+    engine: Engine,
+    schema_name: str = "user_data",
+    table_name: str = "address_table",
+) -> int:
+    full_table_name = f"{schema_name}.{table_name}"
+    null_rows_df = execute_result_returning_query(
+        query=f"""
+            SELECT COUNT(*)
+            FROM {full_table_name}
+            WHERE {null_check_col} IS NULL;
+        """,
+        engine=engine,
+    )
+    rows_w_null_col_val_count = null_rows_df["count"].values[0]
+    return rows_w_null_col_val_count
+
+
+def add_addr_standardization_columns_to_an_address_table(
+    engine: Engine, schema_name: str = "user_data", table_name: str = "std_address_table"
+) -> None:
+    execute_structural_command(
+        query=f"""
+            ALTER TABLE {schema_name}.{table_name}
+                ADD COLUMN IF NOT EXISTS building text DEFAULT NULL,
+                ADD COLUMN IF NOT EXISTS house_num text DEFAULT NULL,
+                ADD COLUMN IF NOT EXISTS predir text DEFAULT NULL,
+                ADD COLUMN IF NOT EXISTS qual text DEFAULT NULL,
+                ADD COLUMN IF NOT EXISTS pretype text DEFAULT NULL,
+                ADD COLUMN IF NOT EXISTS name text DEFAULT NULL,
+                ADD COLUMN IF NOT EXISTS suftype text DEFAULT NULL,
+                ADD COLUMN IF NOT EXISTS sufdir text DEFAULT NULL,
+                ADD COLUMN IF NOT EXISTS ruralroute text DEFAULT NULL,
+                ADD COLUMN IF NOT EXISTS extra text DEFAULT NULL,
+                ADD COLUMN IF NOT EXISTS city text DEFAULT NULL,
+                ADD COLUMN IF NOT EXISTS state text DEFAULT NULL,
+                ADD COLUMN IF NOT EXISTS country text DEFAULT NULL,
+                ADD COLUMN IF NOT EXISTS postcode text DEFAULT NULL,
+                ADD COLUMN IF NOT EXISTS box text DEFAULT NULL,
+                ADD COLUMN IF NOT EXISTS unit text DEFAULT NULL;
+        """,
+        engine=engine,
+    )
+
+
+def batch_standardize_address_table(
+    engine: Engine,
+    schema_name: str = "user_data",
+    table_name: str = "std_address_table",
+    batch_size: int = 100,
+) -> None:
+    full_table_name = f"{schema_name}.{table_name}"
+    query = f"""
+        UPDATE {full_table_name}
+        SET (
+            building, house_num, predir, qual, pretype, name, suftype, sufdir, ruralroute,
+            extra, city, state, country, postcode, box, unit
+        ) = (
+            (sa).building, (sa).house_num, (sa).predir, (sa).qual, (sa).pretype, (sa).name,
+            (sa).suftype, (sa).sufdir, (sa).ruralroute, (sa).extra, (sa).city, (sa).state,
+            (sa).country, (sa).postcode, (sa).box, (sa).unit
+        )
+        FROM (
+            SELECT full_address, name
+            FROM {full_table_name}
+            WHERE name IS NULL LIMIT {batch_size}
+            ) AS a
+        LEFT JOIN LATERAL
+        standardize_address(
+                'tiger.pagc_lex', 'tiger.pagc_gaz', 'tiger.pagc_rules', a.full_address
+            ) AS sa
+        ON true
+        WHERE a.full_address = {full_table_name}.full_address;
+    """
+    execute_structural_command(query=query, engine=engine)
+
+
+def _apply_function_to_all_address_table_rows(
+    engine: Engine,
+    table_name: str,
+    null_check_col: str,
+    batch_func: Callable,
+    schema_name: str = "user_data",
+    batch_size: int = 100,
+) -> None:
+    rows_left = count_rows_w_null_values_in_a_column(
+        engine=engine, null_check_col=null_check_col, schema_name=schema_name, table_name=table_name
+    )
+    batches_left = (rows_left // batch_size) + (rows_left % batch_size > 0)
+    for i in tqdm(range(batches_left)):
+        batch_func(
+            engine=engine, schema_name=schema_name, table_name=table_name, batch_size=batch_size
+        )
+
+
+def normalize_all_addresses_in_address_table(engine: Engine, batch_size: int = 100) -> None:
+    _apply_function_to_all_address_table_rows(
+        engine=engine,
+        schema_name="user_data",
+        table_name="address_table",
+        null_check_col="streetname",
+        batch_func=batch_normalize_address_table,
+        batch_size=batch_size,
+    )
+
+
+def standardize_all_addresses_in_address_table(engine: Engine, batch_size: int = 100) -> None:
+    _apply_function_to_all_address_table_rows(
+        engine=engine,
+        schema_name="user_data",
+        table_name="std_address_table",
+        null_check_col="name",
+        batch_func=batch_standardize_address_table,
+        batch_size=batch_size,
+    )
