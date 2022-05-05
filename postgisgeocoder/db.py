@@ -105,14 +105,16 @@ def database_has_schema(engine: Engine, schema_name: str) -> bool:
         return engine.dialect.has_schema(connection=conn, schema=schema_name)
 
 
-def create_database_schema(engine: Engine, schema_name: str) -> None:
+def create_database_schema(engine: Engine, schema_name: str, verbose: bool = False) -> None:
     if not database_has_schema(engine=engine, schema_name=schema_name):
         with engine.connect() as conn:
             conn.execute(CreateSchema(name=schema_name))
             conn.commit()
-            print(f"Database schema '{schema_name}' successfully created.")
+            if verbose:
+                print(f"Database schema '{schema_name}' successfully created.")
     else:
-        print(f"Database schema '{schema_name}' already exists.")
+        if verbose:
+            print(f"Database schema '{schema_name}' already exists.")
 
 
 def get_data_table_names_in_schema(engine: Engine, schema_name: str) -> List:

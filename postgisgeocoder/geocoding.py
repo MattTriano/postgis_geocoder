@@ -10,7 +10,9 @@ from postgisgeocoder.db import (
     execute_result_returning_query,
     execute_structural_command,
     create_database_schema,
+    get_srid_of_column,
 )
+from postgisgeocoder.utils import decode_geom_valued_column_to_geometry_type
 
 
 def create_user_data_schema(engine: Engine) -> None:
@@ -118,14 +120,18 @@ def to_sql_on_conflict_do_nothing(table, conn, keys, data_iter) -> None:
 
 
 def add_addresses_to_address_table(
-    addr_df: pd.DataFrame,
+    full_addresses: pd.Series,
     engine: Engine,
     schema_name: str = "user_data",
     table_name: str = "address_table",
 ) -> None:
-    assert addr_df.shape[1] == 1, "Only one column permitted for addr_df."
-    assert addr_df.columns[0] == "full_address", "Only 'full_address' permitted in addr_df."
-    addr_df.to_sql(
+    if isinstance(full_addresses, pd.DataFrame):
+        assert "full_address" in full_addresses, (
+            "'full_addresses' must either be a pandas Series of full addresses or be a "
+            + "pandas DataFrame that has a column named 'full_address' that contains full addresses."
+        )
+        full_addresses = full_addresses["full_address"].copy()
+    full_addresses.to_sql(
         name=table_name,
         schema=schema_name,
         con=engine,
@@ -366,7 +372,7 @@ def geocode_all_addresses_in_normalized_address_table(
     )
 
 
-def _read_geocoded_address_table_w_lat_longs(
+def read_geocoded_address_table_w_lat_longs(
     engine: Engine, schema_name: str = "user_data", table_name: str = "address_table"
 ) -> gpd.GeoDataFrame:
     srid = get_srid_of_column(
@@ -387,3 +393,72 @@ def _read_geocoded_address_table_w_lat_longs(
     )
     geocoded_table_gdf = gpd.GeoDataFrame(geocoded_table_df, crs=f"epsg:{srid}")
     return geocoded_table_gdf
+
+
+def ingest_normalize_and_geocode_addresses(
+    full_addresses: pd.Series,
+    engine: Engine,
+    schema_name: str = "user_data",
+    table_name: str = "address_table",
+    batch_size: int = 100,
+    rating_threshold: int = 22,
+) -> None:
+    """Loads a pd.Series of full addresses into the indicated table, normalizes addresses, and
+    geocodes those addresses."""
+    setup_address_table_for_address_normalization(
+        engine=engine, schema_name=schema_name, table_name=table_name
+    )
+    add_addresses_to_address_table(
+        full_addresses=full_addresses, engine=engine, schema_name=schema_name, table_name=table_name
+    )
+    normalize_all_addresses_in_address_table(
+        engine=engine, schema_name=schema_name, table_name=table_name, batch_size=batch_size
+    )
+    geocode_all_addresses_in_normalized_address_table(
+        engine=engine, schema_name=schema_name, table_name=table_name, batch_size=batch_size
+    )
+
+
+def geocode_addresses(
+    df: pd.DataFrame,
+    engine: Engine,
+    full_address_colname: str = "full_address",
+    verbose: bool = True,
+) -> gpd.GeoDataFrame:
+    """Ingests, normalizes, and geocodes addresses in a DataFrame.
+
+    The number of implementations will likely increase and more parameters will likely be
+    added, but maintaining the current [df, full_address_colname, engine, verbose] interface
+    will be a priority.
+    """
+    schema_name = "user_data"
+    table_name = "address_table"
+
+    if "full_address" not in df.columns:
+        df["full_address"] = df[full_address_colname].copy()
+    ingest_normalize_and_geocode_addresses(
+        full_addresses=df["full_address"].copy(),
+        engine=engine,
+        schema_name=schema_name,
+        table_name=table_name,
+        batch_size=100,
+        rating_threshold=22,
+    )
+    geocoded_addr_table_gdf = read_geocoded_address_table_w_lat_longs(
+        engine=engine, schema_name=schema_name, table_name=table_name
+    )
+    geocoded_full_df = pd.merge(
+        left=df,
+        right=geocoded_addr_table_gdf,
+        how="left",
+        on="full_address",
+        suffixes=("_orig", "_geocoder"),
+    )
+    geocoded_full_gdf = gpd.GeoDataFrame(geocoded_full_df, crs=f"epsg:4269")
+    if verbose:
+        total_rows = geocoded_full_gdf.shape[0]
+        rows_w_geometry = geocoded_full_gdf["geometry"].notnull().sum()
+        pct_geocoded = (100 * rows_w_geometry / total_rows).round(2)
+        print(f"Total rows in original DataFrame: {total_rows:>8}")
+        print(f"Rows with a geocoding result:     {rows_w_geometry:>8} ({pct_geocoded}% of total)")
+    return geocoded_full_gdf
