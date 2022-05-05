@@ -157,7 +157,7 @@ def get_table_column_details(
     return execute_result_returning_query(query=query, engine=engine)
 
 
-def is_geo_table(engine: Engine, schema_name: str, table_name: str) -> bool:
+def get_geo_columns_in_table(engine: Engine, schema_name: str, table_name: str) -> List:
     table_col_details = get_table_column_details(
         engine=engine, schema_name=schema_name, table_name=table_name
     )
@@ -173,4 +173,35 @@ def is_geo_table(engine: Engine, schema_name: str, table_name: str) -> bool:
         "circle",
     ]
     col_is_geo_mask = table_col_details["udt_name"].str.lower().isin(geometry_column_names)
-    return col_is_geo_mask.any()
+    if col_is_geo_mask.any():
+        return table_col_details.loc[col_is_geo_mask, "column_name"].to_list()
+    else:
+        return list()
+
+
+def is_geo_table(engine: Engine, schema_name: str, table_name: str) -> bool:
+    geo_col_names = get_geo_columns_in_table(
+        engine=engine, schema_name=schema_name, table_name=table_name
+    )
+    return len(geo_col_names) > 0
+
+
+def get_srid_of_column(
+    engine: Engine, schema_name: str, table_name: str, column_name: str = "geomout"
+) -> int:
+    """Returns the SRID (Spatial Reference ID) of a column, if it has a geo-type in this database.
+    These values will typically be the EPSG (European Petroleum Survey Group) SRID number."""
+    geo_col_names = get_geo_columns_in_table(
+        engine=engine, schema_name=schema_name, table_name=table_name
+    )
+    if column_name in geo_col_names:
+        column_srid = execute_result_returning_query(
+            query=f"SELECT Find_SRID('{schema_name}', '{table_name}', '{column_name}');",
+            engine=engine,
+        )
+        return column_srid["find_srid"].values[0]
+    else:
+        raise ValueError(
+            f"Column {column_name} in {schema_name}.{table_name} is geometric or geographic "
+            + f"(ie no SRID).\n Geo-columns in that table: {geo_col_names}"
+        )
