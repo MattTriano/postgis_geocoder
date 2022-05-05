@@ -23,7 +23,7 @@ def create_address_table(
     execute_structural_command(
         query=f"""
             CREATE TABLE IF NOT EXISTS {schema_name}.{table_name} (
-                full_address varchar(100) PRIMARY KEY 
+                full_address varchar(100) PRIMARY KEY
             );
         """,
         engine=engine,
@@ -53,16 +53,6 @@ def add_addr_normalization_columns_to_address_table(
     )
 
 
-def setup_address_table(
-    engine: Engine, schema_name: str = "user_data", table_name: str = "address_table"
-) -> None:
-    create_database_schema(engine=engine, schema_name=schema_name)
-    create_address_table(engine=engine, schema_name=schema_name, table_name=table_name)
-    add_addr_normalization_columns_to_address_table(
-        engine=engine, schema_name=schema_name, table_name=table_name
-    )
-
-
 def add_geocode_output_columns_to_address_table(
     engine: Engine, schema_name: str = "user_data", table_name: str = "address_table"
 ) -> None:
@@ -71,9 +61,22 @@ def add_geocode_output_columns_to_address_table(
             ALTER TABLE {schema_name}.{table_name}
                 ADD COLUMN IF NOT EXISTS rating integer DEFAULT NULL,
                 ADD COLUMN IF NOT EXISTS norm_address varchar DEFAULT NULL,
-                ADD COLUMN IF NOT EXISTS geomout geometry DEFAULT NULL;
+                ADD COLUMN IF NOT EXISTS geomout geometry(POINT,4269) DEFAULT NULL;
         """,
         engine=engine,
+    )
+
+
+def setup_address_table_for_address_normalization(
+    engine: Engine, schema_name: str = "user_data", table_name: str = "address_table"
+) -> None:
+    create_database_schema(engine=engine, schema_name=schema_name)
+    create_address_table(engine=engine, schema_name=schema_name, table_name=table_name)
+    add_addr_normalization_columns_to_address_table(
+        engine=engine, schema_name=schema_name, table_name=table_name
+    )
+    add_geocode_output_columns_to_address_table(
+        engine=engine, schema_name=schema_name, table_name=table_name
     )
 
 
@@ -361,3 +364,26 @@ def geocode_all_addresses_in_normalized_address_table(
         batch_func=batch_geocode_address_table,
         batch_size=batch_size,
     )
+
+
+def _read_geocoded_address_table_w_lat_longs(
+    engine: Engine, schema_name: str = "user_data", table_name: str = "address_table"
+) -> gpd.GeoDataFrame:
+    srid = get_srid_of_column(
+        engine=engine, schema_name=schema_name, table_name=table_name, column_name="geomout"
+    )
+    geocoded_table_df = execute_result_returning_query(
+        query=f"""
+            SELECT
+                full_address,
+                ST_X(ST_TRANSFORM(at.geomout,{srid})) AS longitude,
+                ST_Y(ST_TRANSFORM(at.geomout,{srid})) AS latitude,
+                at.geomout AS geometry
+            FROM {schema_name}.{table_name} at;""",
+        engine=engine,
+    )
+    geocoded_table_df["geometry"] = decode_geom_valued_column_to_geometry_type(
+        geocoded_table_df["geometry"]
+    )
+    geocoded_table_gdf = gpd.GeoDataFrame(geocoded_table_df, crs=f"epsg:{srid}")
+    return geocoded_table_gdf
