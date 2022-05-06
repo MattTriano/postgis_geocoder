@@ -13,12 +13,3 @@ def get_user_geocode_settings(conn: pg.extensions.connection) -> pd.DataFrame:
     """
     return execute_result_returning_query(query=query, conn=conn)
 
-
-def get_default_geocode_settings(
-    conn: pg.extensions.connection,
-) -> pd.DataFrame:
-    """Returns default geocode_settings."""
-    query = f"""
-        SELECT * FROM tiger.geocode_settings_default;
-    """
-    return execute_result_returning_query(query=query, conn=conn)

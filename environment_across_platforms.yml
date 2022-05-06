@@ -1,0 +1,16 @@
+name: geo_env
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - geopandas
+  - contextily
+  - ipykernel
+  - pyarrow
+  - seaborn
+  - psycopg2
+  - sqlalchemy
+  - pyyaml
+  - black
+  - tqdm
+prefix: /home/matt/miniconda3/envs/geo_env
