@@ -1,6 +1,6 @@
 # PostGIS Geocoder
 
-This repo project aims to enable users to easily set up their own geocoding infrastructure using [US Census Bureau's geospatial TIGER/Line data](https://www.census.gov/geographies/mapping-files/time-series/geo/tiger-line-file.html).
+This repo project enables users to easily set up their own free geocoding infrastructure using [US Census Bureau's geospatial TIGER/Line data](https://www.census.gov/geographies/mapping-files/time-series/geo/tiger-line-file.html).
 
 At present, it's provides functionality to:
 * download geospatial data files for the US states you indicate in the `.env` file,
@@ -12,11 +12,14 @@ At present, it's provides functionality to:
     * postgis_tiger_geocoder,
     * address_standardizer, and
     * address_standardizer_data_us,
-* create a pgadmin4 database administration server as well as a user with the username and password you set in the `/secrets/pgadmin_user.txt` and `/secrets/pgadmin_password.txt` (respectively), and
-* ingest the downloaded data into the database
+* create a pgadmin4 database administration server as well as a user with the username and password you set in the `/secrets/pgadmin_user.txt` and `/secrets/pgadmin_password.txt` (respectively),
+* ingest the downloaded data into the database,
+* conveniently ingest and geocode user-supplied DataFrames containing addresses, and
+* perform any other query that a PostGIS or PostgreSQL database could handle through included python utility code.
 
+# Setup
 
-# Setting up the system
+## Setting up the PostGIS Database and Ingesting Census Bureau TIGER data
 
 1. Clone this repo and navigate into its top-level directory (`/postgis_geocoder`)
 
@@ -39,8 +42,7 @@ At present, it's provides functionality to:
     4. Repeat for the remaining 3 files.
 
 3. Indicate the version (ie year) and set of US States/territories geometries you want to load into the database in the `.../postgis_geocoder/.env` file
-
-    If you want the TIGER Geocoder to load geometries for all states from 2020, leave the default `.env` alone, but if you only want to load a handful of states or you want geometries from another year, edit the `.env` file. For example, if you only wanted to load midwestern states, reduce the listed state abbreviations (central midwestern sample shown below).
+    * If you want the TIGER Geocoder to load geometries for all states from 2020, leave the default `.env` alone, but if you only want to load a handful of states or you want geometries from another year, edit the `.env` file. For example, if you only wanted to load midwestern states, reduce the listed state abbreviations (central midwestern sample shown below).
 
     ```bash
     GEOCODER_STATES=IA,IL,IN,MI,WI
@@ -48,38 +50,38 @@ At present, it's provides functionality to:
     ```
 
 4. Recommended step: Turn on a VPN and set a specific server location
-    Loading a full set of data will involve downloading ~30GB of data from the US Census Bureau site. To limit the load on their servers, Census Bureau servers will only serve any given file to an IP address once per <some_time_period>, but if there's a network hiccup or any other issue, that can force you to have to wait that timespan before you can fill in any gaps in the downloaded set of TIGER files. Using a VPN (or otherwise changing your server's IP address) allows you to download missed files at will.
+    * Loading a full set of data will involve downloading ~30GB of data from the US Census Bureau site. To limit the load on their servers, Census Bureau servers will only serve any given file to an IP address once per <some_time_period>, but if there's a network hiccup or any other issue, that can force you to have to wait that timespan before you can fill in any gaps in the downloaded set of TIGER files. Using a VPN (or otherwise changing your server's IP address) allows you to download missed files at will.
 
 5. Download Census Data Files
-    To download nationwide STATE and COUNTY shapefiles as well as PLACE, COSUB, TRACT, TABBLOCK, and BG shapefiles ((name definitions)[https://www2.census.gov/geo/tiger/TIGER2020/2020_TL_Shapefiles_File_Name_Definitions.pdf]) for the year and states listed in your `.env` file, execute the `download_tiger_data.sh` script as shown below. If you can't execute it, `chmod +x` the file and try again. Add the `-v` flag for verbose output.
+    * To download nationwide STATE and COUNTY shapefiles as well as PLACE, COSUB, TRACT, TABBLOCK, and BG shapefiles ((name definitions)[https://www2.census.gov/geo/tiger/TIGER2020/2020_TL_Shapefiles_File_Name_Definitions.pdf]) for the year and states listed in your `.env` file, execute the `download_tiger_data.sh` script as shown below. If you can't execute it, `chmod +x` the file and try again. Add the `-v` flag for verbose output.
 
         ```bash
         user@host:~/.../postgis_geocoder$ ./download_tiger_data.sh [-v]
         ```
 
-    **Note: Downloading data for all states involves downloading 30GB+ and (in my experience) takes over 12 hours.**
+    * **Note: Downloading data for all states involves downloading 30GB+ and (in my experience) takes over 12 hours.**
 
-    After the download script has finished, run the script again (it should finish nearly instantly as it won't re-download files if they're already downloaded) and scan through the output. If all lines indicate "All files ... successfully downloaded.", proceed to the next step. Otherwise, run the script again (with your VPN pointing to a different server if necessary).
+        * After the download script has finished, run the script again (it should finish nearly instantly as it won't re-download files if they're already downloaded) and scan through the output. If all lines indicate "All files ... successfully downloaded.", proceed to the next step. Otherwise, run the script again (with your VPN pointing to a different server if necessary).
 
-    Second Note: As currently implemented, the data download shell script isn't run through the docker, but it might be in the future.
+        * Second Note: As currently implemented, the data download shell script isn't run through the docker, but it might be in the future.
 
 6. Build the images used in the docker-compose application
-    Build the images for the docker-compose application via the command below. This step will temporarily double the disk usage of this project as it will copy this project's `context` (ie all of the files in this repo that aren't explicitly excluded in a `.dockerignore` file) to a temporary location that the docker daemon builds from before deleting those temporary copies. So if you include all states in your `.env` file, plan on having ~100GB available before proceeding.
+    * Build the images for the docker-compose application via the command below. This step will temporarily double the disk usage of this project as it will copy this project's `context` (ie all of the files in this repo that aren't explicitly excluded in a `.dockerignore` file) to a temporary location that the docker daemon builds from before deleting those temporary copies. So if you include all states in your `.env` file, plan on having ~100GB available before proceeding.
 
         ```bash
         user@host:~/.../postgis_geocoder$ docker-compose build
         ```
 
-    You'll have to repeat this step any time you change the `.env` file (or make any changes to the Dockerfiles or init_files).
+    * You'll have to repeat this step any time you change the `.env` file (or make any changes to the Dockerfiles or init_files).
 
 7. Initialize the database and ingest data
-    The following command starts up the postgis_geocoder docker-compose application. While starting, it will check for the `public_geocoder` volume (indicated in the `docker-compose.yml` file) and if it doesn't find that volume, it will create the volume and run through initialization steps that create the postgis database and ingest data earlier steps downloaded into the `/gisdata` directory.
+    * The following command starts up the postgis_geocoder docker-compose application. While starting, it will check for the `public_geocoder` volume (indicated in the `docker-compose.yml` file) and if it doesn't find that volume, it will create the volume and run through initialization steps that create the postgis database and ingest data earlier steps downloaded into the `/gisdata` directory.
 
         ```bash
         user@host:~/.../postgis_geocoder$ docker-compose up
         ```
 
-    This step may take a bit and produce a lot of console output. When the data ingestion finishes, the console output will stop rapidly changing; scan through the last ~15 lines to see if the ingestion terminated from an error or if everything ingested smoothly. If you see an error, go to the troubleshooting section, but if your output looks like the below, your postgis_geocoder server is up and running!
+    * This step may take a bit and produce a lot of console output. When the data ingestion finishes, the console output will stop rapidly changing; scan through the last ~15 lines to see if the ingestion terminated from an error or if everything ingested smoothly. If you see an error, go to the troubleshooting section, but if your output looks like the below, your postgis_geocoder server is up and running!
 
         ```bash
         ...
@@ -101,9 +103,58 @@ At present, it's provides functionality to:
         ```
 
 
-## ToDo:
-Actually do some geocoding, then document it.
+## Installing the postgisgeocoder python package
 
+Installing this package via 
+
+```bash
+user@host:.../postgis_geocoder$ python -m pip install .
+```
+
+might work, but I highly recommend creating a conda environment (or env for short) and installing the package into that conda env. If you don't already have conda on your system, I recommend installing [miniconda](https://docs.conda.io/en/latest/miniconda.html) and setting two important conda configs by running the command below.
+
+```bash
+...$ conda config --add channels conda-forge
+...$ conda config --set channel_priority strict
+```
+
+Then create the conda env via
+
+```bash
+user@host:.../postgis_geocoder$ conda env create -f environment_across_platforms.yaml
+```
+
+and after that finishes, activate your newly created conda environment and install the `postgisgeocoder` package
+
+```bash
+user@host:.../postgis_geocoder$ conda activate geo_env
+(geo_env) user@host:.../postgis_geocoder$ python -m pip install .
+```
+
+### Geocodeing using your PostGIS Database and the postgisgeocoder package
+
+Create an engine which will authenticate your database credentials and create your connection to the database, and then use the `geocode_addresses()` function to geocode the addresses in a pandas DataFrame you provide.
+
+(**Note:** the `get_engine_from_secrets()` functionality will likely be supplemented by a `get_engine_from_credentials_file()` function in the future to facilitate multiuser systems)
+
+```python
+import pandas as pd
+
+from postgisgeocoder.db import get_engine_from_secrets
+from postgisgeocoder.geocoding import geocode_addresses
+
+engine = get_engine_from_secrets()
+gdf = geocode_addresses(
+    df=a_df_containing_an_address_column,
+    engine=engine,
+    full_address_colname="full_address",
+    verbose=True
+)
+```
+
+The current implementation ingests distinct addresses into a table of user-supplied addresses in the PostGIS database and then geocodes any ungeocoded addresses in that table, so prior geocoding results will already be cached thereby negating duplicate work.
+
+For a fuller demonstration of the geocoding and mapping functionality, see the notebook `/examples/geocode_and_map_demo.ipynb`.
 
 
 ## Accessing pgadmin4
@@ -144,6 +195,10 @@ If your data ingestion finished early as a result of some error, look through th
     user@host:~/.../postgis_geocoder$ docker-compose build
     user@host:~/.../postgis_geocoder$ docker-compose up
     ```
+
+# FAQ
+* What does TIGER stand for?
+    * Topologically Integrated Geographic Encoding and Referencing
 
 # Misc
 
