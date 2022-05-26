@@ -11,12 +11,8 @@ from sqlalchemy.engine.base import Engine
 
 
 def get_project_root_dir() -> os.path:
-    if "__file__" in globals().keys():
-        root_dir = os.path.dirname(os.path.abspath("__file__"))
-    else:
-        root_dir = os.path.dirname(os.path.abspath("."))
-    assert ".git" in os.listdir(root_dir)
-    assert "postgis_geocoder" in root_dir
+    root_dir = os.path.dirname(os.path.dirname(__file__))
+    assert os.path.basename(root_dir) == "postgis_geocoder"
     return root_dir
 
 

@@ -33,6 +33,8 @@ def get_connection_url_from_secrets() -> URL:
 
 
 def get_engine_from_secrets(use_sqlalchemy_v2: bool = False, echo: bool = False) -> Engine:
+    """This will only work for users with the correct secrets files (which should only be
+    administrators of the system; credential_file methods will be forthcoming)."""
     connection_url = get_connection_url_from_secrets()
     engine = create_engine(connection_url, future=use_sqlalchemy_v2, echo=echo)
     return engine
