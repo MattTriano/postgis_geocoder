@@ -462,3 +462,24 @@ def geocode_addresses(
         print(f"Total rows in original DataFrame: {total_rows:>8}")
         print(f"Rows with a geocoding result:     {rows_w_geometry:>8} ({pct_geocoded}% of total)")
     return geocoded_full_gdf
+
+
+def reverse_geocode_lat_long_pair(
+    lat: float, long: float, srid: int, engine: Engine
+) -> pd.DataFrame:
+    result = execute_result_returning_query(
+        query=f"""
+        SELECT rev.pt[1], (rga).address, (rga).predirabbrev, (rga).streetname, (rga).streettypeabbrev,
+               (rga).postdirabbrev, (rga).internal, (rga).location, (rga).stateabbrev, (rga).zip, 
+               (rga).parsed, (rga).zip4, (rga).address_alphanumeric, rev.street[1]
+        FROM (
+            SELECT rg.intpt as pt, rg.addy[1] as rga, rg.street
+            FROM reverse_geocode( ST_SetSRID(ST_Point({long},{lat}),{srid}), TRUE ) As rg
+        ) AS rev;
+        """,
+        engine=engine,
+    )
+    result["pt"] = decode_geom_valued_column_to_geometry_type(result["pt"])
+    result["latitude"] = lat
+    result["longitude"] = long
+    return result
