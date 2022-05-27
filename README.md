@@ -1,6 +1,10 @@
 # PostGIS Geocoder
 
-This repo project enables users to easily set up their own free geocoding infrastructure using [US Census Bureau's geospatial TIGER/Line data](https://www.census.gov/geographies/mapping-files/time-series/geo/tiger-line-file.html).
+Free tools for converting addresses to latitude and longitude values (ie geocoding), converting (latitude, longitude) pairs to addresses (reverse geocoding), and generally preparing geospatial data for analysis and mapping.
+
+## Overview
+
+This repo project enables users to easily set up their own free geocoding infrastructure using [US Census Bureau's geospatial TIGER/Line data](https://www.census.gov/geographies/mapping-files/time-series/geo/tiger-line-file.html). 
 
 At present, it's provides functionality to:
 * download geospatial data files for the US states you indicate in the `.env` file,
@@ -103,6 +107,18 @@ At present, it's provides functionality to:
         ```
 
 
+# Usage
+
+## Setting up a database credentials file
+
+Create a file named `credentials.yml` in an sensible, ideally `.gitignore`d location (eg a project directory, a directory of user-credential-files, etc), and define your `database_username` and `database_password`, and the `host_port_to_database` in that file. It should look like the sample below (or like `credentials.yml.example` in this repo).
+
+```yaml
+database_username: replace_me_with_a_database_username
+database_password: replace_me_with_the_database_password_for_that_user
+host_port_to_database: 4326
+```
+
 ## Installing the postgisgeocoder python package
 
 Installing this package via 
@@ -131,19 +147,20 @@ user@host:.../postgis_geocoder$ conda activate geo_env
 (geo_env) user@host:.../postgis_geocoder$ python -m pip install .
 ```
 
-### Geocodeing using your PostGIS Database and the postgisgeocoder package
+### Geocodeing Addresses using your PostGIS Database and the postgisgeocoder package
 
 Create an engine which will authenticate your database credentials and create your connection to the database, and then use the `geocode_addresses()` function to geocode the addresses in a pandas DataFrame you provide.
 
-(**Note:** the `get_engine_from_secrets()` functionality will likely be supplemented by a `get_engine_from_credentials_file()` function in the future to facilitate multiuser systems)
-
 ```python
+import os
 import pandas as pd
 
 from postgisgeocoder.db import get_engine_from_secrets
 from postgisgeocoder.geocoding import geocode_addresses
 
-engine = get_engine_from_secrets()
+engine = get_engine_from_credentials_file(
+    credential_path=os.path.join("path", "to", "your", "credentials.yml")
+)
 gdf = geocode_addresses(
     df=a_df_containing_an_address_column,
     engine=engine,
