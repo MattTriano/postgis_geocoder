@@ -224,3 +224,7 @@ Useful tip: if you want to capture console output to a file, tack on ` 2>&1 | te
 docker-compose build 2>&1 | tee build_logs_$(date +"%Y_%m_%d__%H_%M_%S").txt
 
 2>&1 | tee download_logs_$(date +"%Y_%m_%d__%H_%M_%S").txt
+
+# Thanks and Attribution
+
+Thanks to Regina Obe and Leo Hsu for their extensive work on PostGIS and Nic Dobbins for his work transforming Regina and Leo's [data loading sql scripts](https://git.osgeo.org/gitea/postgis/postgis/src/branch/master/extras/tiger_geocoder/tiger_loader_2019.sql) into a [data loading shell script](https://github.com/uwrit/postgis-docker/blob/master/src/db/load_data.sh). Both of these resources helped me produce one of the scripts ([load_tiger_data.sh](https://github.com/MattTriano/postgis_geocoder/blob/main/init_files/load_tiger_data.sh)) that loads the downloaded data into the PostGIS database upon initialization.
